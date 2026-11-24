@@ -1,0 +1,94 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+.topbar {
+  display: flex; align-items: center; gap: 24px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.brand { font-weight: 800; font-size: 17px; letter-spacing: 0.3px; }
+.logo { color: var(--accent); }
+.tabs { display: flex; gap: 4px; }
+.tab {
+  background: none; border: none; color: var(--muted);
+  padding: 7px 14px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer;
+}
+.tab:hover { color: var(--text); background: var(--panel-2); }
+.tab.active { color: var(--text); background: var(--panel-2); box-shadow: inset 0 -2px 0 var(--accent); }
+.status { margin-left: auto; display: flex; gap: 8px; }
+.pill {
+  font-size: 12px; padding: 4px 10px; border-radius: 999px;
+  background: var(--panel-2); color: var(--muted); border: 1px solid var(--line);
+  max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pill.ok { color: #7ee2a8; border-color: #2f6b4a; }
+.pill.err { color: #ff8a8a; border-color: #7a3434; }
+
+main { flex: 1; min-height: 0; padding: 16px; }
+.view { display: none; height: 100%; }
+.view.active { display: grid; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-width: 0;
+}
+.card h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+
+/* ---- Live ---- */
+.live { grid-template-columns: 1fr 360px; gap: 16px; }
+.devices { display: flex; flex-direction: column; gap: 16px; min-width: 0; overflow: auto; }
+.kb-card { container-type: inline-size; }
+.kb-card .keyboard { --u: min(44px, calc((100cqw - 20px) / 19.2)); }
+.row { display: flex; gap: 16px; }
+.row .grow { flex: 1; }
+.center { display: flex; justify-content: center; align-items: center; min-height: 200px; }
+.devices .gamepad { --u: 52px; }
+.devices .mouse { --u: 52px; }
+
+.history-card { display: flex; flex-direction: column; min-height: 0; }
+.history-head { display: flex; align-items: center; justify-content: space-between; }
+.history-head h2 { margin: 0; }
+.tools { display: flex; gap: 6px; }
+.btn {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 7px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.active { background: var(--accent); border-color: var(--accent); }
+.filters { display: flex; gap: 10px; margin: 12px 0; font-size: 13px; }
+.filter { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.filter.dev-kb input { accent-color: var(--kb); }
+.filter.dev-mouse input { accent-color: var(--mouse); }
+.filter.dev-pad input { accent-color: var(--pad); }
+.history-slot { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
+.history-slot .hist-list { overflow: visible; }
+
+/* ---- Réglages ---- */
+.settings { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-content: start; overflow: auto; }
+.hint { color: var(--muted); font-size: 13px; margin: -4px 0 12px; line-height: 1.4; }
+.form { display: flex; flex-direction: column; gap: 10px; }
+.form label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+.form select {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 13px;
+}
+.form input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+.range { display: flex; align-items: center; gap: 8px; }
+.range input { accent-color: var(--accent); width: 150px; }
+.range output { width: 40px; text-align: right; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.shortcuts { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+kbd {
+  background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px;
+  border-radius: 4px; padding: 1px 6px; font-family: inherit; font-size: 12px;
+}

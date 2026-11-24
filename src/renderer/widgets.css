@@ -1,0 +1,113 @@
+/* Styles partagés des widgets (fenêtre principale + overlay) */
+:root {
+  --bg: #0f1117;
+  --panel: #171a23;
+  --panel-2: #1f2330;
+  --line: #2c3142;
+  --text: #e6e8ef;
+  --muted: #8b91a5;
+  --accent: #7c5cff;
+  --accent-2: #a48bff;
+  --kb: #7c5cff;
+  --mouse: #ff9f43;
+  --pad: #2ec4b6;
+  --u: 40px;
+}
+
+.widget { color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; }
+
+/* ---- Clavier ---- */
+.keyboard { display: flex; gap: calc(var(--u) * 0.4); }
+.kb-block { display: flex; flex-direction: column; }
+.kb-row { display: flex; }
+.key, .kb-gap {
+  width: calc(var(--u) * var(--w) - 4px);
+  height: calc(var(--u) - 4px);
+  margin: 2px;
+  box-sizing: border-box;
+}
+.key {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  font-size: calc(var(--u) * 0.36);
+  font-weight: 600;
+  color: var(--muted);
+  transition: background 60ms, color 60ms, transform 60ms;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.key.small { font-size: calc(var(--u) * 0.26); }
+.key.on {
+  background: var(--kb);
+  border-color: var(--accent-2);
+  color: #fff;
+  transform: translateY(1px);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--kb) 70%, transparent);
+}
+
+/* ---- Souris ---- */
+.mouse-svg { width: calc(var(--u) * 2.6); display: block; }
+.m-body { fill: var(--panel-2); stroke: var(--line); stroke-width: 2; }
+.m-btn { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; transition: fill 60ms; }
+.m-btn.on { fill: var(--mouse); stroke: #ffd29e; }
+.m-arrow { fill: var(--line); }
+.m-arrow.on { fill: var(--mouse); }
+
+/* ---- Manette ---- */
+.gamepad { position: relative; }
+.pad-svg { width: calc(var(--u) * 8); display: block; }
+.p-body { fill: var(--panel-2); stroke: var(--line); stroke-width: 2; }
+.p-btn { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; transition: fill 60ms; }
+.p-btn.on { fill: var(--pad); stroke: #9ff2ea; }
+.face .p-btn { stroke: var(--face); }
+.face .p-btn.on { fill: var(--face); }
+.stick-base { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+.stick { fill: #3a4055; stroke: #59607a; stroke-width: 2; }
+.stick.on { fill: var(--pad); }
+.pad-svg text { fill: var(--muted); font-size: 13px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+.face text { fill: var(--text); font-size: 14px; }
+.t-bg { fill: var(--panel); stroke: var(--line); }
+.t-fill { fill: var(--pad); opacity: 0.85; }
+.trigger.on text { fill: #fff; }
+.gamepad.disconnected .pad-svg { opacity: 0.35; }
+.pad-status {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--muted); text-align: center; pointer-events: none;
+}
+
+/* ---- Historique ---- */
+.history { display: flex; flex-direction: column; min-height: 0; }
+.hist-list { display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
+.hist-row {
+  display: grid;
+  grid-template-columns: 62px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.hist-row.held { outline: 1px solid var(--line); }
+.hist-row .gap { color: var(--muted); font-size: 11px; }
+.hist-row .dur { color: var(--muted); font-size: 12px; }
+.hist-row.held .dur { color: var(--text); }
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+.chip {
+  padding: 1px 7px; border-radius: 4px; font-weight: 700; font-size: 13px;
+  background: color-mix(in srgb, var(--c) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 60%, transparent);
+  color: #fff;
+}
+.chip.held { background: var(--c); }
+.chip.dev-kb { --c: var(--kb); }
+.chip.dev-mouse { --c: var(--mouse); }
+.chip.dev-pad { --c: var(--pad); }
+.plus { color: var(--muted); font-size: 11px; }
+.hist-empty { color: var(--muted); font-size: 13px; padding: 8px; }
+
+.history.compact .hist-row { grid-template-columns: 48px auto auto; justify-content: start; }

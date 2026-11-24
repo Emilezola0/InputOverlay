@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>InputMemory</title>
+  <link rel="stylesheet" href="widgets.css" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo">◉</span> InputMemory</div>
+    <nav class="tabs">
+      <button class="tab active" data-view="live">Live</button>
+      <button class="tab" data-view="settings">Overlay &amp; réglages</button>
+    </nav>
+    <div class="status">
+      <span class="pill" id="hook-status">Capture…</span>
+      <span class="pill" id="pad-status">Manette : aucune</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="view live active" data-view="live">
+      <div class="devices">
+        <div class="card kb-card"><h2>Clavier</h2><div id="kb-slot"></div></div>
+        <div class="row">
+          <div class="card"><h2>Souris</h2><div id="mouse-slot" class="center"></div></div>
+          <div class="card grow"><h2>Manette</h2><div id="pad-slot" class="center"></div></div>
+        </div>
+      </div>
+      <div class="card history-card">
+        <div class="history-head">
+          <h2>Historique</h2>
+          <div class="tools">
+            <button id="btn-pause" class="btn">Pause</button>
+            <button id="btn-clear" class="btn">Effacer</button>
+          </div>
+        </div>
+        <div class="filters">
+          <label class="filter dev-kb"><input type="checkbox" data-filter="kb" checked /> Clavier</label>
+          <label class="filter dev-mouse"><input type="checkbox" data-filter="mouse" checked /> Souris</label>
+          <label class="filter dev-pad"><input type="checkbox" data-filter="pad" checked /> Manette</label>
+        </div>
+        <div id="history-slot" class="history-slot"></div>
+      </div>
+    </section>
+
+    <section class="view settings" data-view="settings">
+      <div class="card">
+        <h2>Overlay</h2>
+        <p class="hint">Une fenêtre transparente toujours au premier plan, à placer par-dessus ton jeu (mode fenêtré ou plein écran sans bordure).</p>
+        <div class="form">
+          <label>Afficher l'overlay <input type="checkbox" data-path="overlay.visible" /></label>
+          <label>Verrouillé (les clics passent au travers) <input type="checkbox" data-path="overlay.locked" /></label>
+          <label>Clavier
+            <select data-path="overlay.keyboard">
+              <option value="off">Masqué</option>
+              <option value="gaming">Gaming (compact)</option>
+              <option value="full">Complet</option>
+            </select>
+          </label>
+          <label>Souris <input type="checkbox" data-path="overlay.mouse" /></label>
+          <label>Manette <input type="checkbox" data-path="overlay.gamepad" /></label>
+          <label>Historique <input type="checkbox" data-path="overlay.history" /></label>
+          <label>Lignes d'historique <span class="range"><input type="range" min="3" max="20" step="1" data-path="overlay.historyRows" data-type="number" /><output></output></span></label>
+          <label>Disposition
+            <select data-path="overlay.direction">
+              <option value="vertical">Verticale</option>
+              <option value="horizontal">Horizontale</option>
+            </select>
+          </label>
+          <label>Taille <span class="range"><input type="range" min="0.5" max="2" step="0.05" data-path="overlay.scale" data-type="number" /><output></output></span></label>
+          <label>Opacité <span class="range"><input type="range" min="0.2" max="1" step="0.02" data-path="overlay.opacity" data-type="number" /><output></output></span></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Général</h2>
+        <div class="form">
+          <label>Disposition du clavier
+            <select data-path="keyboardLayout">
+              <option value="azerty">AZERTY</option>
+              <option value="qwerty">QWERTY</option>
+            </select>
+          </label>
+          <label>Style de manette
+            <select data-path="padStyle">
+              <option value="xbox">Xbox (A B X Y)</option>
+              <option value="ps">PlayStation (✕ ○ □ △)</option>
+            </select>
+          </label>
+          <label>Unité de temps
+            <select data-path="timeUnit">
+              <option value="ms">Millisecondes</option>
+              <option value="frames">Frames (60 fps)</option>
+            </select>
+          </label>
+          <label>Regrouper les appuis simultanés (ms) <span class="range"><input type="range" min="0" max="100" step="5" data-path="mergeWindowMs" data-type="number" /><output></output></span></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Raccourcis globaux</h2>
+        <ul class="shortcuts">
+          <li><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>O</kbd> Afficher / masquer l'overlay</li>
+          <li><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>L</kbd> Verrouiller / déverrouiller l'overlay (déverrouillé = tu peux le déplacer)</li>
+          <li><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>⌫</kbd> Effacer l'historique</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
