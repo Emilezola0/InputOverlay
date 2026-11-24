@@ -1,5 +1,5 @@
 // Process principal : capture globale clavier/souris (uiohook), fenêtres, réglages.
-const { app, BrowserWindow, ipcMain, globalShortcut, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, screen, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { uIOhook } = require('uiohook-napi');
@@ -201,8 +201,83 @@ ipcMain.on('overlay:fit', (_e, { width, height }) => {
   overlayWin.setBounds({ x, y, width: w, height: h });
 });
 
+// ---------- Enregistrements (V2) ----------
+const recDir = () => path.join(app.getPath('userData'), 'recordings');
+const recFile = (id) => path.join(recDir(), `${String(id).replace(/[^\w-]/g, '')}.json`);
+const metaOf = (s) => ({ id: s.id, name: s.name, createdAt: s.createdAt, durationMs: s.durationMs, count: s.events.length });
+let recordState = { active: false, startedAt: null };
+
+function readSession(file) {
+  try {
+    const s = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return s && Array.isArray(s.events) ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSession(s) {
+  fs.mkdirSync(recDir(), { recursive: true });
+  fs.writeFileSync(recFile(s.id), JSON.stringify(s));
+  return metaOf(s);
+}
+
+const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+ipcMain.handle('recordings:list', () => {
+  if (!fs.existsSync(recDir())) return [];
+  return fs.readdirSync(recDir())
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => readSession(path.join(recDir(), f)))
+    .filter(Boolean)
+    .map(metaOf)
+    .sort((a, b) => b.createdAt - a.createdAt);
+});
+ipcMain.handle('recordings:load', (_e, id) => readSession(recFile(id)));
+ipcMain.handle('recordings:save', (_e, s) => writeSession({ ...s, id: s.id || newId() }));
+ipcMain.handle('recordings:rename', (_e, id, name) => {
+  const s = readSession(recFile(id));
+  if (!s) return null;
+  s.name = String(name).slice(0, 80);
+  return writeSession(s);
+});
+ipcMain.handle('recordings:delete', async (_e, id) => {
+  // corbeille plutôt que suppression définitive
+  await shell.trashItem(recFile(id));
+  return true;
+});
+ipcMain.handle('recordings:export', async (_e, id) => {
+  const s = readSession(recFile(id));
+  if (!s) return false;
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWin, {
+    title: 'Exporter la session',
+    defaultPath: `${s.name.replace(/[\\/:*?"<>|]/g, '-')}.json`,
+    filters: [{ name: 'Session InputMemory', extensions: ['json'] }],
+  });
+  if (canceled || !filePath) return false;
+  fs.writeFileSync(filePath, JSON.stringify(s, null, 1));
+  return true;
+});
+ipcMain.handle('recordings:import', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWin, {
+    title: 'Importer une session',
+    filters: [{ name: 'Session InputMemory', extensions: ['json'] }],
+    properties: ['openFile'],
+  });
+  if (canceled || !filePaths[0]) return null;
+  const s = readSession(filePaths[0]);
+  if (!s) return null;
+  return writeSession({ ...s, id: newId(), name: s.name || path.basename(filePaths[0], '.json') });
+});
+ipcMain.on('record:state', (_e, state) => {
+  recordState = state;
+  broadcast('record:state', state);
+});
+ipcMain.handle('record:getState', () => recordState);
+
 // ---------- Raccourcis globaux ----------
 function registerShortcuts() {
+  globalShortcut.register('CommandOrControl+Shift+R', () => mainWin?.webContents.send('record:toggle'));
   globalShortcut.register('CommandOrControl+Shift+O', () =>
     updateSettings({ overlay: { visible: !settings.overlay.visible } })
   );
@@ -217,14 +292,27 @@ function debugSnapshot(dir) {
   for (const [name, w] of [['main', mainWin], ['overlay', overlayWin]]) {
     w.webContents.on('console-message', (e) => console.log(`[${name}] ${e.level}: ${e.message}`));
   }
-  if (process.env.IM_SIMULATE) {
-    const { UiohookKey } = require('uiohook-napi');
-    setTimeout(() => uIOhook.keyToggle(UiohookKey.Shift, 'down'), 1500);
-    setTimeout(() => uIOhook.keyToggle(UiohookKey.W, 'down'), 1510);
-    setTimeout(() => uIOhook.keyToggle(UiohookKey.W, 'up'), 1700);
-    setTimeout(() => uIOhook.keyToggle(UiohookKey.D, 'down'), 2000);
-    setTimeout(() => uIOhook.keyToggle(UiohookKey.Shift, 'up'), 3700);
-    setTimeout(() => uIOhook.keyToggle(UiohookKey.D, 'up'), 3700);
+  let delay = 3500;
+  if (process.env.IM_FAKE) {
+    // Événements FACTICES injectés directement dans les fenêtres : aucune vraie touche n'est
+    // envoyée au système (ne jamais utiliser uIOhook.keyToggle / keyTap ici).
+    const fake = (ms, type, device, code) => setTimeout(() => broadcast('input', { type, device, code }), ms);
+    setTimeout(() => mainWin.webContents.send('record:toggle'), 1000);
+    const seq = [
+      [1100, 'down', 'kb', 42], [1110, 'down', 'kb', 17], [1300, 'up', 'kb', 17],
+      [1400, 'down', 'pad', 'ls:↓'], [1450, 'up', 'pad', 'ls:↓'], [1450, 'down', 'pad', 'ls:↘'],
+      [1500, 'up', 'pad', 'ls:↘'], [1500, 'down', 'pad', 'ls:→'], [1530, 'down', 'pad', 0],
+      [1600, 'up', 'pad', 'ls:→'], [1620, 'up', 'pad', 0], [1700, 'up', 'kb', 42],
+      [1800, 'down', 'mouse', 1], [1900, 'up', 'mouse', 1], [2000, 'tap', 'mouse', 'wheel-down'],
+      [2050, 'tap', 'mouse', 'wheel-down'], [2200, 'down', 'kb', 32], [2900, 'up', 'kb', 32],
+      [2950, 'down', 'kb', 57], [3000, 'up', 'kb', 57],
+    ];
+    for (const [ms, type, device, code] of seq) fake(ms, type, device, code);
+    setTimeout(() => mainWin.webContents.send('record:toggle'), 3200);
+    setTimeout(() => mainWin.webContents.executeJavaScript(
+      `document.querySelector('.tab[data-view="recordings"]').click(); setTimeout(() => { for (let i = 0; i < 30; i++) document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight', bubbles: true })); }, 500);`
+    ), 3600);
+    delay = 4800;
   }
   setTimeout(async () => {
     for (const [name, w] of [['main', mainWin], ['overlay', overlayWin]]) {
@@ -233,7 +321,7 @@ function debugSnapshot(dir) {
       console.log(`[snapshot] ${name} ${JSON.stringify(w.getBounds())}`);
     }
     app.quit();
-  }, 3500);
+  }, delay);
 }
 
 // ---------- Cycle de vie ----------

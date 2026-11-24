@@ -61,12 +61,26 @@ api.onSettings((s) => {
 });
 api.onClearHistory(() => history?.clear());
 
+// Indicateur REC pendant un enregistrement
+let rec = await api.getRecordState();
+const recWrap = document.getElementById('rec-wrap');
+const recBadge = document.getElementById('rec-badge');
+api.onRecordState((s) => (rec = s));
+function updateRec() {
+  recWrap.hidden = !rec.active;
+  if (!rec.active) return;
+  const s = Math.floor((Date.now() - rec.startedAt) / 1000);
+  const txt = `REC ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  if (recBadge.textContent !== txt) recBadge.textContent = txt;
+}
+
 const hub = new InputHub();
 hub.on((ev) => history?.onEvent(ev));
 hub.start();
 
 function frame(now) {
   for (const w of widgets) w.update(hub, now);
+  updateRec();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

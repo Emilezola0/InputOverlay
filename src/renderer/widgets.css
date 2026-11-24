@@ -111,3 +111,13 @@
 .hist-empty { color: var(--muted); font-size: 13px; padding: 8px; }
 
 .history.compact .hist-row { grid-template-columns: 48px auto auto; justify-content: start; }
+
+/* Indicateur d'enregistrement (overlay) */
+.rec-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(58, 22, 32, 0.9); color: #ffb3c1; border: 1px solid #ff4d6d;
+  font: 700 11px 'Segoe UI', sans-serif; padding: 3px 8px; border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.rec-badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #ff4d6d; animation: rec-blink 1s infinite; }
+@keyframes rec-blink { 50% { opacity: 0.3; } }

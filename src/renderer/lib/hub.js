@@ -42,6 +42,7 @@ export class InputHub {
   }
 
   _onRaw({ type, device, code }) {
+    if (device === 'pad') return this._emit(type, device, code); // événements factices (tests)
     const set = device === 'kb' ? this.kb : this.mouse;
     if (type === 'down') set.add(code);
     else if (type === 'up') set.delete(code);

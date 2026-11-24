@@ -15,5 +15,17 @@ contextBridge.exposeInMainWorld('inputMemory', {
   setSettings: (patch) => ipcRenderer.send('settings:set', patch),
   clearHistory: () => ipcRenderer.send('history:clear'),
   hookStatus: () => ipcRenderer.invoke('hook:status'),
-  overlayFit: (width, height) => ipcRenderer.send('overlay:fit', { width, height }),
+  // Enregistrements
+  onRecordToggle: (cb) => subscribe('record:toggle', cb),
+  onRecordState: (cb) => subscribe('record:state', cb),
+  getRecordState: () => ipcRenderer.invoke('record:getState'),
+  setRecordState: (state) => ipcRenderer.send('record:state', state),
+  listRecordings: () => ipcRenderer.invoke('recordings:list'),
+  loadRecording: (id) => ipcRenderer.invoke('recordings:load', id),
+  saveRecording: (session) => ipcRenderer.invoke('recordings:save', session),
+  renameRecording: (id, name) => ipcRenderer.invoke('recordings:rename', id, name),
+  deleteRecording: (id) => ipcRenderer.invoke('recordings:delete', id),
+  exportRecording: (id) => ipcRenderer.invoke('recordings:export', id),
+  importRecording: () => ipcRenderer.invoke('recordings:import'),
+  overlayFit:(width, height) => ipcRenderer.send('overlay:fit', { width, height }),
 });

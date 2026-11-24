@@ -1,6 +1,9 @@
-// Fenêtre principale : vue Live + réglages.
+// Fenêtre principale : vue Live, enregistrements, réglages.
 import { InputHub } from './lib/hub.js';
 import { KeyboardWidget, MouseWidget, GamepadWidget, HistoryWidget } from './lib/widgets.js';
+import { Recorder } from './lib/recorder.js';
+import { formatClock } from './lib/timeline.js';
+import { initRecordings } from './recordings.js';
 
 const api = window.inputMemory;
 let settings = await api.getSettings();
@@ -17,9 +20,31 @@ document.getElementById('mouse-slot').appendChild(mouse.el);
 document.getElementById('pad-slot').appendChild(gamepad.el);
 document.getElementById('history-slot').appendChild(history.el);
 
-hub.on((ev) => history.onEvent(ev));
+const recorder = new Recorder(api);
+hub.on((ev) => {
+  history.onEvent(ev);
+  recorder.onEvent(ev);
+});
 hub.start();
 api.onClearHistory(() => history.clear());
+
+// ---- Enregistrement
+const recordings = initRecordings(api, () => settings);
+const recBtn = document.getElementById('btn-rec');
+const recLabel = document.getElementById('rec-label');
+async function toggleRecording(source) {
+  if (!recorder.active) {
+    recorder.start();
+    recBtn.classList.add('recording');
+    return;
+  }
+  recBtn.classList.remove('recording');
+  recLabel.textContent = 'Enregistrer';
+  const meta = await recorder.stop(settings, source);
+  if (meta) recordings.refreshList(meta.id);
+}
+recBtn.addEventListener('click', () => toggleRecording('button'));
+api.onRecordToggle(() => toggleRecording('shortcut'));
 
 // ---- Onglets
 for (const tab of document.querySelectorAll('.tab')) {
@@ -67,6 +92,7 @@ fillControls();
 api.onSettings((s) => {
   settings = s;
   widgets.forEach((w) => w.setSettings(s));
+  recordings.setSettings(s);
   fillControls();
 });
 
@@ -80,6 +106,8 @@ const padPill = document.getElementById('pad-status');
 // ---- Boucle d'affichage
 function frame(now) {
   for (const w of widgets) w.update(hub, now);
+  recordings.frame(now);
+  if (recorder.active) recLabel.textContent = `${formatClock(recorder.elapsed, false).replace(/\.\d+s$/, 's')} · ${recorder.events.length}`;
   const label = hub.pad.connected ? `Manette : ${hub.pad.id.replace(/\s*\(.*\)$/, '')}` : 'Manette : aucune';
   if (padPill.textContent !== label) {
     padPill.textContent = label;

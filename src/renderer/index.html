@@ -12,8 +12,10 @@
     <div class="brand"><span class="logo">◉</span> InputMemory</div>
     <nav class="tabs">
       <button class="tab active" data-view="live">Live</button>
+      <button class="tab" data-view="recordings">Enregistrements</button>
       <button class="tab" data-view="settings">Overlay &amp; réglages</button>
     </nav>
+    <button id="btn-rec" class="rec-btn" title="Ctrl+Maj+R"><span class="rec-dot"></span><span id="rec-label">Enregistrer</span></button>
     <div class="status">
       <span class="pill" id="hook-status">Capture…</span>
       <span class="pill" id="pad-status">Manette : aucune</span>
@@ -43,6 +45,50 @@
           <label class="filter dev-pad"><input type="checkbox" data-filter="pad" checked /> Manette</label>
         </div>
         <div id="history-slot" class="history-slot"></div>
+      </div>
+    </section>
+
+    <section class="view recordings" data-view="recordings">
+      <aside class="card rec-list-card">
+        <div class="rec-head">
+          <h2>Sessions</h2>
+          <button id="btn-import" class="btn">Importer</button>
+        </div>
+        <div id="rec-list" class="rec-list"></div>
+      </aside>
+
+      <div id="rec-main" class="rec-main empty">
+        <div class="rec-placeholder">Sélectionne ou enregistre une session pour la revoir ici.</div>
+        <div class="card rec-player">
+          <div class="player-bar">
+            <input id="rec-name" class="rec-name" spellcheck="false" title="Renommer la session" />
+            <button id="btn-play" class="btn primary">▶ Lire</button>
+            <span id="rec-time" class="rec-time">0.00s / 0.00s</span>
+            <select id="rec-speed" class="select" title="Vitesse de lecture">
+              <option value="0.1">×0.1</option>
+              <option value="0.25">×0.25</option>
+              <option value="0.5">×0.5</option>
+              <option value="1" selected>×1</option>
+              <option value="2">×2</option>
+            </select>
+            <span class="spacer"></span>
+            <button id="zoom-out" class="btn" title="Dézoomer">−</button>
+            <button id="zoom-fit" class="btn">Ajuster</button>
+            <button id="zoom-in" class="btn" title="Zoomer">+</button>
+            <button id="btn-export" class="btn">Exporter</button>
+            <button id="btn-delete" class="btn danger">Supprimer</button>
+          </div>
+          <div id="timeline" class="timeline"></div>
+          <div class="tl-hint">Clic / glisser : se placer · Ctrl+molette : zoom · Maj+molette : défiler · Espace : lecture · ←/→ : frame par frame (Maj : 1 s)</div>
+        </div>
+        <div class="rec-bottom">
+          <div class="card replay-card">
+            <h2>Rejeu</h2>
+            <div class="replay-row"><div id="replay-kb"></div><div id="replay-mouse"></div><div id="replay-pad"></div></div>
+          </div>
+          <div class="card rec-hist-card"><h2>Historique</h2><div id="replay-history" class="history-slot"></div></div>
+          <div class="card"><h2>Statistiques</h2><div id="rec-stats"></div></div>
+        </div>
       </div>
     </section>
 
@@ -106,6 +152,7 @@
           <li><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>O</kbd> Afficher / masquer l'overlay</li>
           <li><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>L</kbd> Verrouiller / déverrouiller l'overlay (déverrouillé = tu peux le déplacer)</li>
           <li><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>⌫</kbd> Effacer l'historique</li>
+          <li><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>R</kbd> Démarrer / arrêter un enregistrement</li>
         </ul>
       </div>
     </section>

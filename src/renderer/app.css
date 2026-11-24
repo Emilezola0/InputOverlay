@@ -92,3 +92,71 @@ kbd {
   background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px;
   border-radius: 4px; padding: 1px 6px; font-family: inherit; font-size: 12px;
 }
+
+/* ---- Bouton d'enregistrement (barre du haut) ---- */
+.rec-btn {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.rec-btn:hover { border-color: #ff4d6d; }
+.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4d6d; }
+.rec-btn.recording { background: #3a1620; border-color: #ff4d6d; }
+.rec-btn.recording .rec-dot { border-radius: 2px; animation: rec-blink 1s infinite; }
+@keyframes rec-blink { 50% { opacity: 0.3; } }
+
+/* ---- Enregistrements ---- */
+.recordings { grid-template-columns: 270px 1fr; gap: 16px; }
+.rec-list-card { display: flex; flex-direction: column; min-height: 0; }
+.rec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.rec-head h2 { margin: 0; }
+.rec-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; }
+.rec-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; color: var(--text); font: inherit; cursor: pointer;
+}
+.rec-item:hover { border-color: var(--accent); }
+.rec-item.active { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.rec-item-name { font-weight: 600; font-size: 13px; }
+.rec-item-meta { color: var(--muted); font-size: 11px; }
+.rec-none { color: var(--muted); font-size: 13px; line-height: 1.6; padding: 6px; }
+
+.rec-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; overflow-y: auto; }
+.rec-placeholder { display: none; color: var(--muted); padding: 40px; text-align: center; }
+.rec-main.empty > :not(.rec-placeholder) { display: none; }
+.rec-main.empty .rec-placeholder { display: block; }
+
+.player-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.rec-name {
+  background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--text);
+  font: inherit; font-weight: 700; font-size: 15px; padding: 4px 6px; width: 240px;
+}
+.rec-name:hover, .rec-name:focus { border-color: var(--line); outline: none; background: var(--panel-2); }
+.rec-time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; min-width: 130px; }
+.spacer { flex: 1; }
+.btn.primary { background: var(--accent); border-color: var(--accent); min-width: 80px; }
+.btn.danger:hover { border-color: #ff4d6d; color: #ff8a8a; }
+.select {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 13px;
+}
+.timeline { max-height: 300px; overflow-y: auto; overflow-x: hidden; border-radius: 8px; border: 1px solid var(--line); }
+.tl-canvas { display: block; cursor: crosshair; }
+.tl-hint { color: var(--muted); font-size: 11px; margin-top: 6px; }
+
+.rec-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.replay-card { grid-column: 1 / -1; container-type: inline-size; }
+.replay-row { --u: min(30px, calc((100cqw - 60px) / 30.5)); display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 0.8); }
+.replay-row .widget { --u: inherit; }
+.rec-hist-card { display: flex; flex-direction: column; max-height: 380px; }
+
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat { background: var(--panel-2); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; }
+.stat b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 11px; }
+.stat-dev { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.stat-top { width: 100%; border-collapse: collapse; font-size: 13px; }
+.stat-top th { text-align: left; color: var(--muted); font-weight: 600; font-size: 11px; padding: 4px 2px; }
+.stat-top td { padding: 3px 2px; font-variant-numeric: tabular-nums; }
