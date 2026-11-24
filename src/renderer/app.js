@@ -4,6 +4,7 @@ import { KeyboardWidget, MouseWidget, GamepadWidget, HistoryWidget } from './lib
 import { Recorder } from './lib/recorder.js';
 import { formatClock } from './lib/timeline.js';
 import { initRecordings } from './recordings.js';
+import { initTraining } from './trainingView.js';
 
 const api = window.inputMemory;
 let settings = await api.getSettings();
@@ -21,15 +22,18 @@ document.getElementById('pad-slot').appendChild(gamepad.el);
 document.getElementById('history-slot').appendChild(history.el);
 
 const recorder = new Recorder(api);
+let training = null;
 hub.on((ev) => {
   history.onEvent(ev);
   recorder.onEvent(ev);
+  training?.onEvent(ev);
 });
 hub.start();
 api.onClearHistory(() => history.clear());
 
 // ---- Enregistrement
 const recordings = initRecordings(api, () => settings);
+training = initTraining(api, () => settings);
 const recBtn = document.getElementById('btn-rec');
 const recLabel = document.getElementById('rec-label');
 async function toggleRecording(source) {
@@ -93,6 +97,7 @@ api.onSettings((s) => {
   settings = s;
   widgets.forEach((w) => w.setSettings(s));
   recordings.setSettings(s);
+  training.setSettings(s);
   fillControls();
 });
 

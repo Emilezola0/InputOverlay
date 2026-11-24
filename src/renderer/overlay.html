@@ -37,6 +37,18 @@
       padding: 4px 8px; border-radius: 6px; margin-bottom: 8px; white-space: nowrap;
     }
     #rec-wrap { margin-bottom: 6px; }
+    .ov-train { display: flex; flex-direction: column; gap: 6px; font-family: 'Segoe UI', sans-serif; color: #e6e8ef; max-width: 420px; }
+    .ov-train-head { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: #8b91a5; }
+    .ov-train-head b { color: #e6e8ef; font-size: 13px; }
+    .ov-verdict { font-size: 18px; font-weight: 800; }
+    .ov-steps { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ov-step { padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 13px; background: rgba(31,35,48,.9); border: 1px solid #2c3142; }
+    .ov-step.s-ok { background: #1d4a32; border-color: #3fdc8a; }
+    .ov-step.s-almost { background: #4a3d16; border-color: #f0b940; }
+    .ov-step.s-miss { background: #4a1a24; border-color: #ff6b81; }
+    .ov-step.s-pending { opacity: .6; }
+    .ov-detail { font-size: 11px; color: #c9cede; }
+    .v-parfait { color: #3fdc8a; } .v-reussi { color: #8ee0a0; } .v-presque { color: #f0b940; } .v-rate { color: #ff6b81; }
     .ov-empty { color: #8b91a5; font: 12px 'Segoe UI', sans-serif; padding: 6px; }
   </style>
 </head>

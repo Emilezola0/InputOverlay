@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS = {
     mouse: true,
     gamepad: true,
     history: true,
+    training: true, // widget d'entraînement (visible seulement quand un test est actif)
     direction: 'vertical', // 'vertical' | 'horizontal'
     scale: 1,
     opacity: 0.92,
@@ -275,9 +276,45 @@ ipcMain.on('record:state', (_e, state) => {
 });
 ipcMain.handle('record:getState', () => recordState);
 
+// ---------- Séquences d'entraînement (V3) ----------
+const seqFile = () => path.join(app.getPath('userData'), 'sequences.json');
+function readSequences() {
+  try {
+    const list = JSON.parse(fs.readFileSync(seqFile(), 'utf8'));
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+function writeSequences(list) {
+  fs.mkdirSync(path.dirname(seqFile()), { recursive: true });
+  fs.writeFileSync(seqFile(), JSON.stringify(list, null, 1));
+}
+ipcMain.handle('sequences:list', () => readSequences());
+ipcMain.handle('sequences:save', (_e, seq) => {
+  const list = readSequences();
+  const item = { ...seq, id: seq.id || newId(), updatedAt: Date.now() };
+  const i = list.findIndex((x) => x.id === item.id);
+  if (i >= 0) list[i] = item;
+  else list.unshift(item);
+  writeSequences(list);
+  return item;
+});
+ipcMain.handle('sequences:delete', (_e, id) => {
+  writeSequences(readSequences().filter((x) => x.id !== id));
+  return true;
+});
+let trainingState = { active: false };
+ipcMain.on('training:state', (_e, state) => {
+  trainingState = state;
+  broadcast('training:state', state);
+});
+ipcMain.handle('training:getState', () => trainingState);
+
 // ---------- Raccourcis globaux ----------
 function registerShortcuts() {
   globalShortcut.register('CommandOrControl+Shift+R', () => mainWin?.webContents.send('record:toggle'));
+  globalShortcut.register('CommandOrControl+Shift+T', () => mainWin?.webContents.send('training:toggle'));
   globalShortcut.register('CommandOrControl+Shift+O', () =>
     updateSettings({ overlay: { visible: !settings.overlay.visible } })
   );
@@ -293,10 +330,32 @@ function debugSnapshot(dir) {
     w.webContents.on('console-message', (e) => console.log(`[${name}] ${e.level}: ${e.message}`));
   }
   let delay = 3500;
-  if (process.env.IM_FAKE) {
-    // Événements FACTICES injectés directement dans les fenêtres : aucune vraie touche n'est
-    // envoyée au système (ne jamais utiliser uIOhook.keyToggle / keyTap ici).
-    const fake = (ms, type, device, code) => setTimeout(() => broadcast('input', { type, device, code }), ms);
+  // Événements FACTICES injectés directement dans les fenêtres : aucune vraie touche n'est
+  // envoyée au système (ne jamais utiliser uIOhook.keyToggle / keyTap ici).
+  const fake = (ms, type, device, code) => setTimeout(() => broadcast('input', { type, device, code }), ms);
+  const js = (ms, code) => setTimeout(() => mainWin.webContents.executeJavaScript(code), ms);
+  const press = (ms, device, code, hold = 40) => {
+    fake(ms, 'down', device, code);
+    fake(ms + hold, 'up', device, code);
+  };
+  if (process.env.IM_FAKE === 'training') {
+    // Modèle : ↓ ↘ → + A, puis deux essais (un bon, un raté) et un essai "presque"
+    js(800, `document.querySelector('.tab[data-view="training"]').click(); document.getElementById('btn-seq-new').click();`);
+    js(1000, `document.getElementById('btn-seq-capture').click();`);
+    const model = (t0, dt = 1, skip = null, aLate = 0) => {
+      if (skip !== '↓') press(t0, 'pad', 'ls:↓', 45);
+      if (skip !== '↘') press(t0 + 50 * dt, 'pad', 'ls:↘', 45);
+      press(t0 + 100 * dt, 'pad', 'ls:→', 80);
+      press(t0 + 130 * dt + aLate, 'pad', 0, 60);
+    };
+    model(1200);
+    js(2000, `document.getElementById('btn-seq-capture').click();`);
+    js(2300, `document.getElementById('btn-train-toggle').click();`);
+    model(2600); // parfait
+    model(4200, 1, '↘', 0); // étape manquante
+    model(5800, 1, null, 90); // A en retard
+    delay = 7600;
+  } else if (process.env.IM_FAKE) {
     setTimeout(() => mainWin.webContents.send('record:toggle'), 1000);
     const seq = [
       [1100, 'down', 'kb', 42], [1110, 'down', 'kb', 17], [1300, 'up', 'kb', 17],
@@ -309,9 +368,7 @@ function debugSnapshot(dir) {
     ];
     for (const [ms, type, device, code] of seq) fake(ms, type, device, code);
     setTimeout(() => mainWin.webContents.send('record:toggle'), 3200);
-    setTimeout(() => mainWin.webContents.executeJavaScript(
-      `document.querySelector('.tab[data-view="recordings"]').click(); setTimeout(() => { for (let i = 0; i < 30; i++) document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight', bubbles: true })); }, 500);`
-    ), 3600);
+    js(3600, `document.querySelector('.tab[data-view="recordings"]').click(); setTimeout(() => { for (let i = 0; i < 30; i++) document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight', bubbles: true })); }, 500);`);
     delay = 4800;
   }
   setTimeout(async () => {

@@ -27,5 +27,13 @@ contextBridge.exposeInMainWorld('inputMemory', {
   deleteRecording: (id) => ipcRenderer.invoke('recordings:delete', id),
   exportRecording: (id) => ipcRenderer.invoke('recordings:export', id),
   importRecording: () => ipcRenderer.invoke('recordings:import'),
-  overlayFit:(width, height) => ipcRenderer.send('overlay:fit', { width, height }),
+  // Entraînement
+  listSequences: () => ipcRenderer.invoke('sequences:list'),
+  saveSequence: (seq) => ipcRenderer.invoke('sequences:save', seq),
+  deleteSequence: (id) => ipcRenderer.invoke('sequences:delete', id),
+  onTrainingToggle: (cb) => subscribe('training:toggle', cb),
+  onTrainingState: (cb) => subscribe('training:state', cb),
+  getTrainingState: () => ipcRenderer.invoke('training:getState'),
+  setTrainingState: (state) => ipcRenderer.send('training:state', state),
+  overlayFit: (width, height) => ipcRenderer.send('overlay:fit', { width, height }),
 });

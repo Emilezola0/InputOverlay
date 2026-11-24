@@ -22,6 +22,17 @@ npm start
 - **Statistiques** : inputs/minute, écart moyen, inputs les plus utilisés et maintien moyen.
 - Sessions stockées dans `%APPDATA%/inputmemory/recordings`.
 
+## V3 : entraînement
+- Onglet **Entraînement** : crée une séquence, clique sur **● Enregistrer le modèle** et joue la séquence attendue (arrêt auto après 1,5 s). Les inputs simultanés forment une étape (accord).
+- Étapes modifiables : supprimer une étape, en ajouter une (**+ Étape**), ajuster l'écart en ms entre deux étapes.
+- Options : tolérance de timing, vérifier ou non le timing, ignorer les appareils absents de la séquence.
+- **▶ Activer le test** (ou Ctrl+Maj+T, même en jeu) : chaque essai est détecté automatiquement puis évalué étape par étape :
+  - **Réussi** : bons inputs, dans la tolérance ;
+  - **Presque** : un peu tôt/tard, accord incomplet ou joué en décalé, input en trop ;
+  - **Raté** : étape non jouée ou timing trop loin.
+- **Récap** : nombre d'essais, % réussis, parfaits, série en cours, point faible, réussite et timing moyen par étape.
+- Le widget **Entraînement** de l'overlay montre le verdict et les étapes ratées pendant que tu joues.
+
 ## Raccourcis globaux
 | Raccourci | Action |
 |---|---|
@@ -29,11 +40,9 @@ npm start
 | Ctrl+Maj+L | Verrouiller (clics traversants) / déverrouiller (déplaçable) |
 | Ctrl+Maj+⌫ | Effacer l'historique |
 | Ctrl+Maj+R | Démarrer / arrêter un enregistrement |
+| Ctrl+Maj+T | Activer / arrêter le test d'entraînement |
 
 ## Notes
 - L'overlay passe par-dessus les jeux en fenêtré ou plein écran sans bordure, pas en plein écran exclusif.
 - La manette apparaît après un premier appui sur un bouton (règle de l'API Gamepad).
-- Debug : `IM_SNAPSHOT=<dossier>` capture les deux fenêtres puis ferme l'app ; avec `IM_FAKE=1`, des événements factices sont injectés dans l'app (aucune vraie touche n'est envoyée au système).
-
-## Prochaines étapes
-- V3 : mode défi (séquence attendue → ce qui a été raté + récap).
+- Debug : `IM_SNAPSHOT=<dossier>` capture les deux fenêtres puis ferme l'app ; avec `IM_FAKE=1` (enregistrement) ou `IM_FAKE=training` (entraînement), des événements factices sont injectés dans l'app (aucune vraie touche n'est envoyée au système).

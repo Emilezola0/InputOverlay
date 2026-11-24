@@ -9,6 +9,22 @@ let settings = await api.getSettings();
 let widgets = [];
 let history = null;
 let signature = '';
+let trainCard = null;
+let training = await api.getTrainingState();
+
+const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+function renderTraining() {
+  if (!trainCard) return;
+  const t = training;
+  trainCard.hidden = !t.active;
+  if (!t.active) return;
+  const problems = t.phase === 'result' ? t.steps.filter((s) => s.status !== 'ok' && s.detail) : [];
+  trainCard.firstElementChild.innerHTML = `
+    <div class="ov-train-head"><b>${escHtml(t.name)}</b>${t.attempts ? `<span>${t.attempts} essai(s) · ${t.successRate}% réussis</span>` : ''}</div>
+    <div class="ov-verdict ${t.verdict ? 'v-' + t.verdict : ''}">${escHtml(t.verdictLabel)}${t.phase === 'result' && t.score !== null ? ` · ${t.score}%` : ''}</div>
+    <div class="ov-steps">${t.steps.map((s) => `<span class="ov-step s-${t.phase === 'ready' ? 'pending' : s.status}">${escHtml(s.label)}</span>`).join('')}</div>
+    ${problems.slice(0, 3).map((s) => `<div class="ov-detail">${escHtml(s.label)} : ${s.detail}</div>`).join('')}`;
+}
 
 function build() {
   const o = settings.overlay;
@@ -29,15 +45,24 @@ function build() {
     history = new HistoryWidget(settings, { maxRows: o.historyRows, compact: true });
     add(history);
   }
-  if (!widgets.length) root.innerHTML = '<div class="ov-card ov-empty">Aucun widget activé</div>';
+  if (o.training) {
+    const card = document.createElement('div');
+    card.className = 'ov-card ov-train-card';
+    card.hidden = true;
+    card.innerHTML = '<div class="ov-train"></div>';
+    root.appendChild(card);
+    trainCard = card;
+  } else trainCard = null;
+  if (!widgets.length && !o.training) root.innerHTML = '<div class="ov-card ov-empty">Aucun widget activé</div>';
 }
 
 function apply() {
   const o = settings.overlay;
-  const sig = [o.keyboard, o.mouse, o.gamepad, o.history].join('|');
+  const sig = [o.keyboard, o.mouse, o.gamepad, o.history, o.training].join('|');
   if (sig !== signature) {
     signature = sig;
     build();
+    renderTraining();
   } else {
     widgets.forEach((w) => w.setSettings(settings));
     history?.setMaxRows(o.historyRows);
@@ -55,11 +80,16 @@ new ResizeObserver(() => {
 }).observe(document.body);
 
 apply();
+renderTraining();
 api.onSettings((s) => {
   settings = s;
   apply();
 });
 api.onClearHistory(() => history?.clear());
+api.onTrainingState((s) => {
+  training = s;
+  renderTraining();
+});
 
 // Indicateur REC pendant un enregistrement
 let rec = await api.getRecordState();

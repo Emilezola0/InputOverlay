@@ -13,6 +13,7 @@
     <nav class="tabs">
       <button class="tab active" data-view="live">Live</button>
       <button class="tab" data-view="recordings">Enregistrements</button>
+      <button class="tab" data-view="training">Entraînement</button>
       <button class="tab" data-view="settings">Overlay &amp; réglages</button>
     </nav>
     <button id="btn-rec" class="rec-btn" title="Ctrl+Maj+R"><span class="rec-dot"></span><span id="rec-label">Enregistrer</span></button>
@@ -92,6 +93,54 @@
       </div>
     </section>
 
+    <section class="view training" data-view="training">
+      <aside class="card rec-list-card">
+        <div class="rec-head">
+          <h2>Séquences</h2>
+          <button id="btn-seq-new" class="btn">+ Nouvelle</button>
+        </div>
+        <div id="seq-list" class="rec-list"></div>
+      </aside>
+
+      <div id="train-main" class="rec-main empty">
+        <div class="rec-placeholder">Crée une séquence avec <b>+ Nouvelle</b>, puis joue la séquence attendue pour l'enregistrer comme modèle.</div>
+        <div class="card seq-editor">
+          <div class="player-bar">
+            <input id="seq-name" class="rec-name" spellcheck="false" title="Renommer la séquence" />
+            <button id="btn-seq-capture" class="btn">● Enregistrer le modèle</button>
+            <button id="btn-seq-add" class="btn">+ Étape</button>
+            <span class="spacer"></span>
+            <button id="btn-seq-delete" class="btn danger">Supprimer</button>
+          </div>
+          <div id="seq-capture-hint" class="capture-hint" hidden></div>
+          <div id="seq-steps" class="seq-steps"></div>
+          <div class="seq-options">
+            <label>Tolérance de timing <span class="range"><input type="range" id="seq-tol" min="10" max="200" step="5" /><output></output></span></label>
+            <label><input type="checkbox" id="seq-timing" /> Vérifier le timing</label>
+            <label><input type="checkbox" id="seq-ignore" /> Ignorer les appareils absents de la séquence</label>
+          </div>
+        </div>
+        <div class="train-bottom">
+          <div class="card">
+            <div class="history-head">
+              <h2>Test</h2>
+              <button id="btn-train-toggle" class="btn primary" title="Ctrl+Maj+T">▶ Activer le test</button>
+            </div>
+            <div id="train-status" class="train-status"></div>
+            <div id="train-result" class="train-steps"></div>
+            <div id="train-extras" class="train-extras"></div>
+          </div>
+          <div class="card">
+            <div class="history-head">
+              <h2>Récap</h2>
+              <button id="btn-train-reset" class="btn">Réinitialiser</button>
+            </div>
+            <div id="train-recap" class="train-recap"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="view settings" data-view="settings">
       <div class="card">
         <h2>Overlay</h2>
@@ -109,6 +158,7 @@
           <label>Souris <input type="checkbox" data-path="overlay.mouse" /></label>
           <label>Manette <input type="checkbox" data-path="overlay.gamepad" /></label>
           <label>Historique <input type="checkbox" data-path="overlay.history" /></label>
+          <label>Entraînement (pendant un test) <input type="checkbox" data-path="overlay.training" /></label>
           <label>Lignes d'historique <span class="range"><input type="range" min="3" max="20" step="1" data-path="overlay.historyRows" data-type="number" /><output></output></span></label>
           <label>Disposition
             <select data-path="overlay.direction">
@@ -153,6 +203,7 @@
           <li><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>L</kbd> Verrouiller / déverrouiller l'overlay (déverrouillé = tu peux le déplacer)</li>
           <li><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>⌫</kbd> Effacer l'historique</li>
           <li><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>R</kbd> Démarrer / arrêter un enregistrement</li>
+          <li><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>T</kbd> Activer / arrêter le test d'entraînement</li>
         </ul>
       </div>
     </section>
