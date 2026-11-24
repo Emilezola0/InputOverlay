@@ -2,12 +2,28 @@
 
 Visualiseur d'inputs clavier / souris / manette, avec overlay pour les jeux.
 
-## Lancer
+## Télécharger (Windows)
+
+Va dans **[Releases](https://github.com/Emilezola0/InputOverlay/releases)** et prends :
+- `InputMemory-Setup-x.y.z.exe` : installeur (raccourci sur le bureau, désinstallable depuis Windows) ;
+- `InputMemory-Portable-x.y.z.exe` : version portable, rien à installer, il suffit de la lancer.
+
+L'appli n'est pas signée : au premier lancement, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Clique sur **Informations complémentaires**, puis sur **Exécuter quand même**.
+
+## Développer
 
 ```powershell
 npm install
 npm start
 ```
+
+Construire les exécutables (dans `dist/`) :
+
+```powershell
+npm run dist
+```
+
+L'icône est générée par `npm run icon` (`scripts/make-icon.js` → `build/icon.png`).
 
 ## V1
 - **Live** : clavier complet (AZERTY/QWERTY), souris, manette (Xbox/PS), touches allumées en temps réel.

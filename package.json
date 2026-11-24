@@ -3,16 +3,62 @@
   "version": "1.0.0",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "icon": "node scripts/make-icon.js",
+    "dist": "electron-builder --win"
   },
-  "author": "",
+  "author": "Emilezola0",
   "license": "ISC",
   "description": "Visualiseur, enregistreur et overlay d'inputs clavier / souris / manette",
   "dependencies": {
     "uiohook-napi": "^1.5.5"
   },
   "devDependencies": {
-    "electron": "^45.5.0"
+    "electron": "^45.5.0",
+    "electron-builder": "^26.18.0"
   },
-  "productName": "InputMemory"
+  "productName": "InputMemory",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Emilezola0/InputOverlay.git"
+  },
+  "build": {
+    "appId": "com.emilezola0.inputmemory",
+    "productName": "InputMemory",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "InputMemory-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "InputMemory-Portable-${version}.${ext}"
+    }
+  }
 }
