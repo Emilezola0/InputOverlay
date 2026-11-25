@@ -131,6 +131,7 @@
             <label>Tolérance de timing <span class="range"><input type="range" id="seq-tol" min="10" max="200" step="5" /><output></output></span></label>
             <label><input type="checkbox" id="seq-timing" /> Vérifier le timing</label>
             <label><input type="checkbox" id="seq-sweep" /> Ignorer les directions de stick traversées</label>
+            <label title="Angle attendu par direction de stick (0 = haut, positif = droite, négatif = gauche)"><input type="checkbox" id="seq-angles" /> Vérifier les angles du stick</label>
           </div>
           <div class="seq-options">
             <label>Début d'un essai
@@ -158,6 +159,7 @@
             </div>
             <div id="train-status" class="train-status"></div>
             <div id="train-result" class="train-steps"></div>
+            <div id="train-timeline" class="train-timeline"></div>
             <div id="train-extras" class="train-extras"></div>
           </div>
           <div class="card">

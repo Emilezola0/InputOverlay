@@ -44,7 +44,7 @@ export const actionLabel = (game, action) => GAMES[game]?.actions[action]?.label
 
 // Briques des modèles
 const act = (action) => ({ action });
-const dir = (arrow) => pad(`ls:${arrow}`);
+const dir = (arrow, angle, angleTol) => (angle == null ? pad(`ls:${arrow}`) : { ...pad(`ls:${arrow}`), angle, angleTol });
 const st = (t, ...inputs) => ({ t, inputs });
 
 const BASE = { tolerance: 60, timing: false, chordWindow: 40, trigger: 'first', inputFilter: 'devices', stickSweep: true };
@@ -53,16 +53,18 @@ export const TEMPLATES = [
   {
     game: 'Rocket League',
     name: 'Speedflip (flip vers la gauche)',
-    note: "Garde Accélérer + Boost appuyés pendant toute la figure. Tourne un peu à droite, saute, flip en diagonale avant-gauche (↖ + saut), annule tout de suite le flip en tirant le stick en arrière (↓), puis air roll gauche pour retomber à plat. Le léger braquage du début n'est pas vérifié. Certains joueurs tiennent l'air roll dès le saut : dans ce cas, réenregistre le modèle à ta façon.",
+    note: "Garde Accélérer + Boost appuyés pendant toute la figure. Le flip se fait en diagonale à environ 35° à gauche de l'avant (vérifié à ±12°). Tourne un peu à droite, saute, flip en diagonale avant-gauche (↖ + saut), annule tout de suite le flip en tirant le stick en arrière (↓), puis air roll gauche pour retomber à plat. Le léger braquage du début n'est pas vérifié. Certains joueurs tiennent l'air roll dès le saut : dans ce cas, réenregistre le modèle à ta façon.",
+    checkAngles: true,
     hold: [act('throttle'), act('boost')],
-    steps: [st(0, act('jump')), st(100, dir('↖'), act('jump')), st(160, dir('↓')), st(230, act('airRollLeft'))],
+    steps: [st(0, act('jump')), st(100, dir('↖', -35, 12), act('jump')), st(160, dir('↓')), st(230, act('airRollLeft'))],
   },
   {
     game: 'Rocket League',
     name: 'Speedflip (flip vers la droite)',
-    note: 'Version miroir : Accélérer + Boost maintenus, tourne un peu à gauche, saute, flip avant-droite (↗ + saut), annule avec ↓, puis air roll droite.',
+    note: 'Version miroir : Accélérer + Boost maintenus, tourne un peu à gauche, saute, flip avant-droite à environ 35° (↗ + saut), annule avec ↓, puis air roll droite.',
+    checkAngles: true,
     hold: [act('throttle'), act('boost')],
-    steps: [st(0, act('jump')), st(100, dir('↗'), act('jump')), st(160, dir('↓')), st(230, act('airRollRight'))],
+    steps: [st(0, act('jump')), st(100, dir('↗', 35, 12), act('jump')), st(160, dir('↓')), st(230, act('airRollRight'))],
   },
   {
     game: 'Rocket League',
@@ -143,6 +145,7 @@ export function fromTemplate(tpl, settings) {
     category: tpl.game,
     game: tpl.game,
     note: tpl.note,
+    checkAngles: !!tpl.checkAngles,
     hold: structuredClone(tpl.hold ?? []),
     steps: structuredClone(tpl.steps),
   };

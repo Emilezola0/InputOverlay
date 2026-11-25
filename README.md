@@ -58,6 +58,9 @@ Publier une version (après `gh auth login`) :
 - **Modèles intégrés** (bouton **Modèles**) : Rocket League (speedflip gauche/droite, half-flip, fast aerial, wavedash) et jeux de combat (quart de cercle, dragon punch, demi-cercle, dash). Le timing n'y est pas vérifié par défaut : réenregistre le modèle en le jouant toi-même pour l'activer.
 - **Contrôles** (bouton **Contrôles**) : choisis le bouton de chaque action (Sauter, Boost, Air roll…). Les modèles les utilisent, et les séquences déjà créées depuis un modèle sont mises à jour quand tu les changes. Un ⚠ signale deux actions sur le même bouton.
 - **À maintenir pendant tout l'essai** : des inputs à garder appuyés (ex. Accélérer + Boost pour le speedflip). Les relâcher ou ne pas les tenir donne « Presque ».
+- **Fenêtre de délai** (⏱ min–max entre deux étapes) : par exemple « air roll pas avant 100 ms ni après 200 ms après l'annulation ». Elle est vérifiée même sans « Vérifier le timing ».
+- **Angles du stick** : 0° = haut, « 35° G » = 35° à gauche, « 35° D » = 35° à droite. Avec « Vérifier les angles du stick », chaque direction a un angle attendu ± une tolérance. Sur une étape stick + bouton (ex. ↖ + saut), l'angle est mesuré au moment du bouton. Les angles s'affichent aussi sous les sticks de la manette (Live et overlay) et dans l'historique.
+- **Frise** sous le test : le modèle en haut, ton essai en bas sur la même échelle de temps, avec les fenêtres de délai en jaune.
 - **Catégories** et **notes** par séquence, pour ranger tes séquences par jeu.
 - **Début d'un essai** :
   - *Au premier input de la séquence* (par défaut) : tout ce que tu fais avant est ignoré. Idéal en entraînement libre.

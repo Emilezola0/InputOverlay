@@ -28,7 +28,10 @@ export class Recorder {
 
   onEvent(ev) {
     if (!this.active) return;
-    this.events.push({ t: Math.round((ev.t - this.t0) * 10) / 10, type: ev.type, device: ev.device, code: ev.code });
+    const e = { t: Math.round((ev.t - this.t0) * 10) / 10, type: ev.type, device: ev.device, code: ev.code };
+    if (ev.angle != null) e.angle = ev.angle;
+    if (ev.peakAngle != null) e.peakAngle = ev.peakAngle;
+    this.events.push(e);
   }
 
   /** @param {'button'|'shortcut'} source ce qui a déclenché l'arrêt (pour retirer ses propres inputs) */

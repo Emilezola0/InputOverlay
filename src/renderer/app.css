@@ -322,3 +322,28 @@ kbd {
 .hold-item { display: inline-flex; align-items: center; gap: 2px; }
 .holds-line { margin-bottom: 6px; }
 .hold-res { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }
+
+/* ---- Fenêtres de délai, angles, frise ---- */
+.step-gap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.step-gap .win { display: inline-flex; align-items: center; gap: 1px; font-size: 11px; color: var(--muted); }
+.step-gap .win-input { width: 44px; font-size: 11px; padding: 1px 3px; }
+.step-gap.has-win .win { color: #f0b940; }
+.step-gap.has-win .win-input { border-color: #f0b940; }
+.step-body { display: flex; flex-direction: column; gap: 4px; }
+.ang-row { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--muted); }
+.ang-edit { display: inline-flex; align-items: center; gap: 2px; }
+.ang-input { width: 46px; font-size: 11px; padding: 1px 3px; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
+.ang-input.tol { width: 36px; }
+.win-input { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
+.train-timeline { margin-top: 10px; }
+.timeline-svg { width: 100%; height: auto; display: block; }
+.timeline-svg .tl-lbl { fill: var(--muted); font: 600 11px 'Segoe UI', sans-serif; }
+.timeline-svg .tl-axis { stroke: var(--line); stroke-width: 2; }
+.timeline-svg .tl-tick { stroke: var(--line); }
+.timeline-svg .tl-t { fill: var(--muted); font: 10px 'Segoe UI', sans-serif; text-anchor: middle; }
+.timeline-svg .tl-model { fill: var(--panel-2); stroke: var(--accent); stroke-width: 2; }
+.timeline-svg .tl-n { fill: var(--text); font: 700 10px 'Segoe UI', sans-serif; text-anchor: middle; pointer-events: none; }
+.timeline-svg .tl-n.dark { fill: #0f1117; }
+.timeline-svg .tl-link { stroke: var(--muted); stroke-dasharray: 3 3; opacity: 0.6; }
+.timeline-svg .tl-win { fill: rgba(240, 185, 64, 0.18); stroke: rgba(240, 185, 64, 0.6); }
+.timeline-svg .tl-extra { stroke: #8b91a5; stroke-width: 2; }

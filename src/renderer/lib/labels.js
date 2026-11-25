@@ -123,3 +123,11 @@ export function accelFromEvent(ev) {
   if (!mods.length && !/^F\d+$/.test(key)) return null; // sans modificateur, seules les touches F sont acceptées
   return [...mods, key].join('+');
 }
+
+/** Angle de stick lisible : « 0° », « 35° D », « 35° G », « 180° ». */
+export function formatAngle(a) {
+  if (a == null || !Number.isFinite(a)) return '';
+  const v = Math.round(a);
+  if (v === 0 || Math.abs(v) === 180) return `${Math.abs(v)}°`;
+  return `${Math.abs(v)}° ${v > 0 ? 'D' : 'G'}`;
+}

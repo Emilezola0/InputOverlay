@@ -1,8 +1,15 @@
 // Moteur d'entraînement : compare un essai à une séquence modèle.
 // Une séquence = liste d'étapes ; une étape = un ou plusieurs inputs appuyés ensemble, à un temps t (ms).
+// Options d'une étape : minGap / maxGap (fenêtre de délai depuis l'étape précédente, en ms, vérifiée même
+// sans « Vérifier le timing »). Option d'un input de stick : angle / angleTol (degrés, 0 = haut, + = droite),
+// vérifiés si la séquence a checkAngles.
 
 export const keyOf = (i) => `${i.device}:${i.code}`;
 const isStickDir = (i) => i.device === 'pad' && typeof i.code === 'string' && i.code.includes(':');
+export const isStickInput = isStickDir;
+/** Écart signé entre deux angles (−180…180). */
+export const angleDiff = (a, b) => ((((a - b) % 360) + 540) % 360) - 180;
+export const hasWindow = (st) => st.minGap != null || st.maxGap != null;
 export const sequenceKeys = (seq) => new Set(seq.steps.flatMap((st) => st.inputs.map(keyOf)));
 export const holdKeys = (seq) => new Set((seq?.hold ?? []).map(keyOf));
 
@@ -12,7 +19,11 @@ export function inputFilterOf(seq) {
   return seq.ignoreOtherDevices === false ? 'all' : 'devices'; // anciennes séquences
 }
 
-/** Regroupe des appuis {device, code, t} en étapes (accords) selon une fenêtre en ms. */
+/**
+ * Regroupe des appuis {device, code, t, angle?, peakAngle?, sticks?} en étapes (accords) selon une fenêtre en ms.
+ * Angle d'une direction de stick : position du stick au moment du bouton joué avec elle dans l'étape
+ * (ex. ↖ + saut : l'angle au moment du saut), sinon l'angle au plus loin du centre.
+ */
 export function buildSteps(presses, chordWindow = 40) {
   const steps = [];
   const t0 = presses[0]?.t ?? 0;
@@ -20,11 +31,25 @@ export function buildSteps(presses, chordWindow = 40) {
     const last = steps[steps.length - 1];
     const t = p.t - t0;
     const input = { device: p.device, code: p.code };
+    const src = { input, p };
     if (last && t - last.t <= chordWindow) {
-      if (!last.inputs.some((i) => keyOf(i) === keyOf(input))) last.inputs.push(input);
+      if (!last.inputs.some((i) => keyOf(i) === keyOf(input))) {
+        last.inputs.push(input);
+        last.src.push(src);
+      }
     } else {
-      steps.push({ t: Math.round(t), inputs: [input] });
+      steps.push({ t: Math.round(t), inputs: [input], src: [src] });
     }
+  }
+  for (const st of steps) {
+    for (const { input, p } of st.src) {
+      if (!isStickDir(input)) continue;
+      const stick = input.code.slice(0, 2);
+      const btn = st.src.find((x) => !isStickDir(x.input) && x.p.sticks?.[stick]?.m >= 0.5);
+      const a = btn ? btn.p.sticks[stick].a : p.peakAngle ?? p.angle;
+      if (a != null) input.angle = Math.round(a);
+    }
+    delete st.src;
   }
   return steps;
 }
@@ -103,6 +128,7 @@ export function evaluate(sequence, presses, { partial = false, holds = [] } = {}
   }
   const att = buildSteps(presses, sequence.chordWindow ?? 40);
   const tol = sequence.tolerance ?? 50;
+  const angleRank = { ok: 0, almost: 1, miss: 2 };
   const checkTiming = sequence.timing !== false;
   const pairs = align(ref, att);
 
@@ -125,12 +151,15 @@ export function evaluate(sequence, presses, { partial = false, holds = [] } = {}
     st.missing = R.inputs.filter((i) => !ak.has(keyOf(i)));
     st.extra = A.inputs.filter((i) => !rk.has(keyOf(i)));
     st.err = prev ? A.t - prev.at - (R.t - prev.rt) : 0;
+    st.gap = prev ? A.t - prev.at : null; // délai réel depuis l'étape précédente
+    st.at = A.t; // moment joué (depuis le début de l'essai), pour la frise
     const exact = st.missing.length === 0 && st.extra.length === 0;
     const absErr = Math.abs(st.err);
+    const windowed = prev && hasWindow(R); // une fenêtre de délai remplace le timing « modèle ± tolérance »
     if (!exact) {
       st.status = 'almost';
       st.reason = st.missing.length ? 'accord incomplet' : 'inputs en trop';
-    } else if (!checkTiming || absErr <= tol) {
+    } else if (!checkTiming || windowed || absErr <= tol) {
       st.status = 'ok';
       st.reason = '';
     } else if (absErr <= tol * 2.5) {
@@ -149,6 +178,37 @@ export function evaluate(sequence, presses, { partial = false, holds = [] } = {}
       if (rank[sStatus] > rank[st.status] || (st.status === 'ok' && sStatus === 'ok')) {
         st.status = sStatus;
         st.reason = sStatus === 'ok' ? '' : 'accord pas simultané';
+      }
+    }
+    // fenêtre de délai : pas avant minGap, pas après maxGap
+    if (windowed) {
+      const lo = R.minGap ?? -Infinity;
+      const hi = R.maxGap ?? Infinity;
+      const out = st.gap < lo ? lo - st.gap : st.gap > hi ? st.gap - hi : 0;
+      st.windowOut = out ? (st.gap < lo ? -out : out) : 0;
+      if (out) {
+        const wStatus = out <= tol ? 'almost' : 'miss';
+        if (angleRank[wStatus] >= angleRank[st.status === 'pending' ? 'ok' : st.status]) {
+          st.status = wStatus;
+          st.reason = st.gap < lo ? 'trop tôt' : 'trop tard';
+        }
+      }
+    }
+    // angles des sticks
+    st.angles = [];
+    for (const ri of R.inputs) {
+      if (!isStickDir(ri)) continue;
+      const ai = A.inputs.find((x) => keyOf(x) === keyOf(ri));
+      if (ai?.angle == null) continue;
+      const check = sequence.checkAngles && ri.angle != null;
+      const tolA = ri.angleTol ?? 15;
+      const diff = check ? angleDiff(ai.angle, ri.angle) : 0;
+      const ok = !check || Math.abs(diff) <= tolA;
+      st.angles.push({ code: ri.code, angle: ai.angle, target: check ? ri.angle : null, tol: tolA, diff, ok });
+      if (!ok) {
+        const aStatus = Math.abs(diff) <= tolA * 2 ? 'almost' : 'miss';
+        if (angleRank[aStatus] > angleRank[st.status]) st.status = aStatus;
+        if (st.status !== 'ok' && (st.reason === '' || aStatus === st.status)) st.reason = 'mauvais angle';
       }
     }
     prev = { rt: R.t, at: A.t };
@@ -196,6 +256,10 @@ export function summarize(sequence, attempts) {
       almost: res.filter((s) => s.status === 'almost').length,
       miss: res.filter((s) => s.status === 'miss').length,
       avgErr: errs.length ? errs.reduce((a, b) => a + b, 0) / errs.length : null,
+      avgAngle: (() => {
+        const v = res.map((s) => s.angles?.[0]?.angle).filter((a) => a != null);
+        return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null;
+      })(),
       topReason,
     };
   });
@@ -227,7 +291,8 @@ export function summarize(sequence, attempts) {
  * Fin : dernière étape jouée, ou plus d'input pendant un moment, ou durée maximale dépassée.
  */
 export class AttemptTracker {
-  constructor({ onProgress, onResult, onArm }) {
+  constructor({ onProgress, onResult, onArm, liveSticks }) {
+    this.liveSticks = liveSticks; // position actuelle des sticks (pour un stick encore tenu à la fin)
     this.onProgress = onProgress;
     this.onResult = onResult;
     this.onArm = onArm;
@@ -299,6 +364,15 @@ export class AttemptTracker {
       this.down.delete(key);
       // input à maintenir relâché pendant l'essai
       if (this.running) for (const h of this.holds) if (h.key === key && h.ok) Object.assign(h, { ok: false, reason: 'relâché' });
+      if (this.running && ev.peakAngle != null) {
+        for (let i = this.presses.length - 1; i >= 0; i--) {
+          const p = this.presses[i];
+          if (`${p.device}:${p.code}` === key) {
+            if (p.peakAngle == null) p.peakAngle = ev.peakAngle;
+            break;
+          }
+        }
+      }
     }
   }
 
@@ -324,7 +398,7 @@ export class AttemptTracker {
         return { input: { device: i.device, code: i.code }, key: keyOf(i), ok, reason: ok ? '' : 'pas maintenu' };
       });
     }
-    this.presses.push({ device: ev.device, code: ev.code, t: ev.t });
+    this.presses.push({ device: ev.device, code: ev.code, t: ev.t, angle: ev.angle, sticks: ev.sticks });
     clearTimeout(this.timer);
     const partial = evaluate(this.sequence, this.presses, { partial: true, holds: this.publicHolds() });
     this.onProgress?.(partial);
@@ -348,6 +422,14 @@ export class AttemptTracker {
   finish() {
     clearTimeout(this.timer);
     if (!this.presses.length) return;
+    // direction de stick encore tenue : on prend sa position actuelle plutôt que l'angle d'entrée
+    const live = this.liveSticks?.();
+    if (live) {
+      for (const p of this.presses) {
+        const s = typeof p.code === 'string' ? p.code.slice(0, 2) : '';
+        if (p.peakAngle == null && (s === 'ls' || s === 'rs') && this.down.has(`${p.device}:${p.code}`) && live[s]?.m >= 0.5) p.peakAngle = live[s].a;
+      }
+    }
     const result = evaluate(this.sequence, this.presses, { holds: this.publicHolds() });
     result.presses = this.presses;
     result.at = Date.now();

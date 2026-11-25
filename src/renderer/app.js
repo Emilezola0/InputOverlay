@@ -34,7 +34,7 @@ api.onClearHistory(() => history.clear());
 
 // ---- Enregistrement
 const recordings = initRecordings(api, () => settings);
-training = initTraining(api, () => settings);
+training = initTraining(api, () => settings, hub);
 const recBtn = document.getElementById('btn-rec');
 const recLabel = document.getElementById('rec-label');
 async function toggleRecording(source) {

@@ -1,6 +1,7 @@
 // Widgets visuels : clavier, souris, manette, historique.
 // Chaque widget expose `el`, `update(hub, now)` (appelé à chaque frame) et `setSettings(settings)`.
-import { K, keyLabel, inputLabel, formatDuration, PAD_LABELS } from './labels.js';
+import { K, keyLabel, inputLabel, formatDuration, formatAngle, PAD_LABELS } from './labels.js';
+import { stickAngle } from './hub.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -118,6 +119,16 @@ const FACE = {
   ps: { 0: '#6ea8ff', 1: '#ff6b6b', 2: '#e58fd6', 3: '#4fd1a5' },
 };
 
+// Graduations autour des sticks : traits tous les 45°, petits traits tous les 15°
+const TICKS = Array.from({ length: 24 }, (_, i) => {
+  const a = (i * 15 * Math.PI) / 180;
+  const big = i % 3 === 0;
+  const r1 = big ? 30 : 32;
+  const r2 = 36;
+  const p = (r) => `${(Math.sin(a) * r).toFixed(1)} ${(-Math.cos(a) * r).toFixed(1)}`;
+  return `<path class="${big ? 'tick big' : 'tick'}" d="M${p(r1)} L${p(r2)}"/>`;
+}).join('');
+
 export class GamepadWidget {
   constructor(settings) {
     this.el = document.createElement('div');
@@ -130,9 +141,15 @@ export class GamepadWidget {
         <rect class="p-btn" data-b="5" x="252" y="28" width="86" height="18" rx="9"/><text x="295" y="41" data-l="5"></text>
         <path class="p-body" d="M70 52 Q200 40 330 52 Q360 56 368 90 L392 200 Q398 248 356 250 Q326 252 306 218 L290 196 L110 196 L94 218 Q74 252 44 250 Q2 248 8 200 L32 90 Q40 56 70 52 Z"/>
         <circle class="stick-base" cx="110" cy="105" r="30"/>
+        <g class="stick-ticks" transform="translate(110 105)">${TICKS}</g>
+        <line class="stick-ray" data-ray="0" x1="110" y1="105" x2="110" y2="105"/>
         <circle class="stick" data-s="0" data-b="10" cx="110" cy="105" r="18"/>
         <circle class="stick-base" cx="250" cy="165" r="30"/>
+        <g class="stick-ticks" transform="translate(250 165)">${TICKS}</g>
+        <line class="stick-ray" data-ray="2" x1="250" y1="165" x2="250" y2="165"/>
         <circle class="stick" data-s="2" data-b="11" cx="250" cy="165" r="18"/>
+        <text class="stick-angle" data-angle="0" x="110" y="152"></text>
+        <text class="stick-angle" data-angle="2" x="250" y="212"></text>
         <rect class="p-btn" data-b="12" x="138" y="136" width="20" height="24" rx="3"/>
         <rect class="p-btn" data-b="13" x="138" y="180" width="20" height="24" rx="3"/>
         <rect class="p-btn" data-b="14" x="114" y="160" width="24" height="20" rx="3"/>
@@ -147,7 +164,12 @@ export class GamepadWidget {
       </svg>
       <div class="pad-status"></div>`;
     this.btns = [...this.el.querySelectorAll('.p-btn, .stick')].map((n) => [Number(n.dataset.b), n]);
-    this.sticks = [...this.el.querySelectorAll('.stick')].map((n) => [Number(n.dataset.s), n]);
+    this.sticks = [...this.el.querySelectorAll('.stick')].map((n) => [
+      Number(n.dataset.s),
+      n,
+      this.el.querySelector(`.stick-ray[data-ray="${n.dataset.s}"]`),
+      this.el.querySelector(`.stick-angle[data-angle="${n.dataset.s}"]`),
+    ]);
     this.triggers = [...this.el.querySelectorAll('.trigger')].map((g) => [Number(g.dataset.t), g.querySelector('.t-fill'), g]);
     this.status = this.el.querySelector('.pad-status');
     this.setSettings(settings);
@@ -167,10 +189,20 @@ export class GamepadWidget {
     this.status.textContent = p.connected ? '' : 'Manette non détectée : appuie sur un bouton';
     if (!p.connected) return;
     for (const [b, n] of this.btns) n.classList.toggle('on', !!p.buttons[b]);
-    for (const [axis, n] of this.sticks) {
-      const x = (p.axes[axis] ?? 0) * 14;
-      const y = (p.axes[axis + 1] ?? 0) * 14;
-      n.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+    for (const [axis, n, ray, label] of this.sticks) {
+      const ax = p.axes[axis] ?? 0;
+      const ay = p.axes[axis + 1] ?? 0;
+      n.setAttribute('transform', `translate(${(ax * 14).toFixed(1)} ${(ay * 14).toFixed(1)})`);
+      // rayon et angle : visibles dès que le stick sort du centre
+      const m = Math.min(1, Math.hypot(ax, ay));
+      const show = m > 0.2;
+      const cx = Number(ray.getAttribute('x1'));
+      const cy = Number(ray.getAttribute('y1'));
+      ray.setAttribute('x2', (cx + (show ? (ax / m) * 36 * m : 0)).toFixed(1));
+      ray.setAttribute('y2', (cy + (show ? (ay / m) * 36 * m : 0)).toFixed(1));
+      ray.classList.toggle('strong', m > 0.5);
+      const txt = show ? formatAngle(stickAngle(ax, ay)) : '';
+      if (label.textContent !== txt) label.textContent = txt;
     }
     for (const [i, fill, g] of this.triggers) {
       const v = p.values[i] ?? 0;
@@ -218,7 +250,7 @@ export class HistoryWidget {
       if (ev.type !== 'up') return;
     }
     const last = this.rows[this.rows.length - 1];
-    const item = { device: ev.device, code: ev.code, key: ev.key, tDown: ev.t, tUp: null };
+    const item = { device: ev.device, code: ev.code, key: ev.key, tDown: ev.t, tUp: null, angle: ev.angle ?? null };
 
     if (ev.type === 'tap') {
       if (last && last.tap && last.items[0].key === ev.key && ev.t - last.tLast < 300) {
@@ -237,6 +269,7 @@ export class HistoryWidget {
         const it = this.rows[r].items.find((i) => i.key === ev.key && i.tUp === null);
         if (it) {
           it.tUp = ev.t;
+          if (ev.peakAngle != null) it.angle = ev.peakAngle; // angle au plus loin du centre
           break;
         }
       }
@@ -259,7 +292,10 @@ export class HistoryWidget {
       const row = this.rows[r];
       const held = row.items.some((i) => i.tUp === null);
       const chips = row.items
-        .map((i) => `<span class="chip dev-${i.device}${i.tUp === null ? ' held' : ''}">${esc(inputLabel(i, this.settings))}</span>`)
+        .map((i) => {
+          const ang = i.angle != null ? ` <small class="ang">${formatAngle(i.angle)}</small>` : '';
+          return `<span class="chip dev-${i.device}${i.tUp === null ? ' held' : ''}">${esc(inputLabel(i, this.settings))}${ang}</span>`;
+        })
         .join('<span class="plus">+</span>');
       const dur = row.tap
         ? row.count > 1 ? `×${row.count}` : ''

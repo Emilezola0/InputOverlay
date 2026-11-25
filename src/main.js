@@ -474,7 +474,7 @@ function debugSnapshot(dir) {
   let delay = 3500;
   // Événements FACTICES injectés directement dans les fenêtres : aucune vraie touche n'est
   // envoyée au système (ne jamais utiliser uIOhook.keyToggle / keyTap ici).
-  const fake = (ms, type, device, code) => setTimeout(() => broadcast('input', { type, device, code }), ms);
+  const fake = (ms, type, device, code, extra = {}) => setTimeout(() => broadcast('input', { type, device, code, ...extra }), ms);
   const js = (ms, code) => setTimeout(() => mainWin.webContents.executeJavaScript(code), ms);
   const press = (ms, device, code, hold = 40) => {
     fake(ms, 'down', device, code);
@@ -494,9 +494,11 @@ function debugSnapshot(dir) {
       for (const [ms, code] of [[2200, 7], [2220, 5], [2260, 'ls:→']]) fake(ms, 'down', 'pad', code);
       fake(2400, 'up', 'pad', 'ls:→');
       const t = 2600;
-      for (const [ms, type, code] of [[t, 'down', 0], [t + 60, 'up', 0], [t + 100, 'down', 'ls:↖'], [t + 115, 'down', 0], [t + 150, 'up', 'ls:↖'],
-        [t + 150, 'down', 'ls:←'], [t + 160, 'up', 'ls:←'], [t + 160, 'down', 'ls:↙'], [t + 170, 'up', 'ls:↙'], [t + 170, 'down', 'ls:↓'],
-        [t + 240, 'down', 4]]) fake(ms, type, 'pad', code);
+      // fenêtre de délai sur l'air roll (étape 4) : 100 à 200 ms après l'annulation
+      js(2100, `for (const [k, v] of [['min', 100], ['max', 200]]) { const el = document.querySelector('.win-input[data-i="3"][data-k="' + k + '"]'); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); }`);
+      for (const [ms, type, code, extra] of [[t, 'down', 0], [t + 60, 'up', 0], [t + 100, 'down', 'ls:↖', { angle: -41 }], [t + 115, 'down', 0], [t + 150, 'up', 'ls:↖', { peakAngle: -41 }],
+        [t + 150, 'down', 'ls:←', { angle: -95 }], [t + 160, 'up', 'ls:←'], [t + 160, 'down', 'ls:↙', { angle: -140 }], [t + 170, 'up', 'ls:↙'], [t + 170, 'down', 'ls:↓', { angle: -170 }],
+        [t + 240, 'down', 4]]) fake(ms, type, 'pad', code, extra);
       delay = 4000;
     }
   } else if (process.env.IM_FAKE === 'overlay-edit') {
@@ -515,6 +517,12 @@ function debugSnapshot(dir) {
       document.dispatchEvent(new PointerEvent('pointerup', { ...o, screenX: 250, screenY: 40 })); })()`);
     setTimeout(() => console.log('[overlay-edit]', JSON.stringify(settings.overlay)), 2600);
     delay = 2900;
+  } else if (process.env.IM_FAKE === 'pad-angle') {
+    // Manette simulée dans la page (navigator.getGamepads) : stick gauche à ~35° à gauche, stick droit à ~80° à droite
+    setTimeout(() => updateSettings({ overlay: { locked: true, keyboard: 'off', mouse: false, gamepad: true, history: false, training: false } }), 500);
+    const padJs = `navigator.getGamepads = () => [{ id: 'Manette simulée', index: 0, mapping: 'standard', connected: true, axes: [-0.57, -0.82, 0.98, -0.17], buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: i === 0, value: i === 7 ? 0.6 : i === 0 ? 1 : 0 })) }]; 0;`;
+    setTimeout(() => overlayWin.webContents.executeJavaScript(padJs), 900);
+    delay = 1800;
   } else if (process.env.IM_FAKE === 'reopen') {
     // Rouvre l'onglet Entraînement pour vérifier que les essais sauvegardés sont rechargés
     js(800, `document.querySelector('.tab[data-view="training"]').click();`);

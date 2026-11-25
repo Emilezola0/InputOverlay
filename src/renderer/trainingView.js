@@ -1,13 +1,14 @@
 // Onglet « Entraînement » : éditeur de séquence modèle, test en direct, résultat et récap.
-import { buildSteps, evaluate, summarize, AttemptTracker, VERDICT_LABEL, keyOf, inputFilterOf, holdKeys } from './lib/training.js';
+import { buildSteps, evaluate, summarize, AttemptTracker, VERDICT_LABEL, keyOf, inputFilterOf, holdKeys, isStickInput, hasWindow } from './lib/training.js';
 import { TEMPLATES, GAMES, fromTemplate, controlsFor, applyControls, actionLabel } from './lib/templates.js';
-import { inputLabel, formatDuration, formatAccel, K } from './lib/labels.js';
+import { inputLabel, formatDuration, formatAccel, formatAngle, K } from './lib/labels.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-const DEFAULTS = { tolerance: 50, timing: true, chordWindow: 40, trigger: 'first', inputFilter: 'sequence', stickSweep: true, category: '', note: '' };
+const DEFAULTS = { tolerance: 50, timing: true, chordWindow: 40, trigger: 'first', inputFilter: 'sequence', stickSweep: true, checkAngles: false, category: '', note: '' };
+const num = (v) => (v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
 
-export function initTraining(api, getSettings) {
+export function initTraining(api, getSettings, hub = null) {
   let settings = getSettings();
   let sequences = [];
   let seq = null;
@@ -28,12 +29,14 @@ export function initTraining(api, getSettings) {
     inputs
       .map((i) => {
         const al = i.action ? actionLabel(game, i.action) : '';
-        return `<span class="chip dev-${i.device}"${al ? ` title="${esc(al)}"` : ''}>${esc(inputLabel(i, settings))}${al ? `<small class="act">${esc(al)}</small>` : ''}</span>`;
+        const ang = i.angle != null && isStickInput(i) ? `<small class="ang">${esc(formatAngle(i.angle))}</small>` : '';
+        return `<span class="chip dev-${i.device}"${al ? ` title="${esc(al)}"` : ''}>${esc(inputLabel(i, settings))}${al ? `<small class="act">${esc(al)}</small>` : ''}${ang}</span>`;
       })
       .join('<span class="plus">+</span>');
   const unit = () => settings.timeUnit;
 
   const tracker = new AttemptTracker({
+    liveSticks: () => hub?.stick,
     onArm: (on) => {
       armed = on;
       renderTest();
@@ -238,6 +241,7 @@ export function initTraining(api, getSettings) {
     $('seq-tol').value = seq.tolerance;
     $('seq-timing').checked = seq.timing;
     $('seq-sweep').checked = seq.stickSweep !== false;
+    $('seq-angles').checked = !!seq.checkAngles;
     $('seq-trigger').value = seq.trigger;
     $('seq-filter').value = inputFilterOf(seq);
     $('seq-category').value = seq.category ?? '';
@@ -297,6 +301,10 @@ export function initTraining(api, getSettings) {
     seq.stickSweep = $('seq-sweep').checked;
     changed();
   });
+  $('seq-angles').addEventListener('change', () => {
+    seq.checkAngles = $('seq-angles').checked;
+    changed();
+  });
   $('seq-trigger').addEventListener('change', () => {
     seq.trigger = $('seq-trigger').value;
     changed();
@@ -332,6 +340,23 @@ export function initTraining(api, getSettings) {
     changed({ resetAttempts: true });
   });
   $('seq-steps').addEventListener('change', (ev) => {
+    const win = ev.target.closest('.win-input');
+    if (win) {
+      const st = seq.steps[Number(win.dataset.i)];
+      const v = num(win.value);
+      if (win.dataset.k === 'min') st.minGap = v == null ? undefined : Math.max(0, v);
+      else st.maxGap = v == null ? undefined : Math.max(0, v);
+      if (st.minGap != null && st.maxGap != null && st.minGap > st.maxGap) [st.minGap, st.maxGap] = [st.maxGap, st.minGap];
+      return changed({ resetAttempts: true });
+    }
+    const ang = ev.target.closest('.ang-input');
+    if (ang) {
+      const inp = seq.steps[Number(ang.dataset.i)].inputs[Number(ang.dataset.j)];
+      const v = num(ang.value);
+      if (ang.dataset.k === 'angle') inp.angle = v == null ? undefined : Math.max(-180, Math.min(180, Math.round(v)));
+      else inp.angleTol = v == null ? undefined : Math.max(1, Math.min(90, Math.round(v)));
+      return changed({ resetAttempts: true });
+    }
     const input = ev.target.closest('.gap-input');
     if (!input) return;
     const i = Number(input.dataset.i); // écart entre l'étape i-1 et i
@@ -504,10 +529,19 @@ export function initTraining(api, getSettings) {
     }
     $('seq-steps').innerHTML = seq.steps
       .map((st, i) => {
+        const v = (x) => (x == null ? '' : x);
         const gap = i > 0
-          ? `<div class="step-gap" title="Écart avec l'étape précédente (ms)"><input class="gap-input" type="number" min="0" step="5" data-i="${i}" value="${Math.round(st.t - seq.steps[i - 1].t)}">ms</div>`
+          ? `<div class="step-gap${hasWindow(st) ? ' has-win' : ''}">
+              <span title="Écart du modèle avec l'étape précédente"><input class="gap-input" type="number" min="0" step="5" data-i="${i}" value="${Math.round(st.t - seq.steps[i - 1].t)}">ms</span>
+              <span class="win" title="Fenêtre de délai : pas avant min, pas après max (ms après l'étape précédente). Vérifiée même sans « Vérifier le timing ». Laisse vide pour ne pas limiter.">⏱<input class="win-input" type="number" min="0" step="5" data-i="${i}" data-k="min" placeholder="min" value="${v(st.minGap)}">–<input class="win-input" type="number" min="0" step="5" data-i="${i}" data-k="max" placeholder="max" value="${v(st.maxGap)}"></span>
+            </div>`
           : '';
-        return `${gap}<div class="step-card"><span class="step-num">${i + 1}</span><div class="chips">${chips(st.inputs)}</div><button class="step-del" data-i="${i}" title="Supprimer l'étape">×</button></div>`;
+        const angles = seq.checkAngles
+          ? st.inputs
+              .map((inp, j) => (!isStickInput(inp) ? '' : `<span class="ang-edit" title="Angle attendu : 0 = haut, positif = droite, négatif = gauche">${esc(inputLabel(inp, settings))} <input class="ang-input" type="number" step="1" min="-180" max="180" data-i="${i}" data-j="${j}" data-k="angle" placeholder="—" value="${v(inp.angle)}">° ± <input class="ang-input tol" type="number" step="1" min="1" max="90" data-i="${i}" data-j="${j}" data-k="tol" placeholder="15" value="${v(inp.angleTol)}">°</span>`))
+              .join('')
+          : '';
+        return `${gap}<div class="step-card"><span class="step-num">${i + 1}</span><div class="step-body"><div class="chips">${chips(st.inputs)}</div>${angles ? `<div class="ang-row">${angles}</div>` : ''}</div><button class="step-del" data-i="${i}" title="Supprimer l'étape">×</button></div>`;
       })
       .join('');
   }
@@ -530,9 +564,18 @@ export function initTraining(api, getSettings) {
     if (s.split !== undefined && s.split > 2) {
       parts.push(`${s.lateInputs.map((x) => esc(inputLabel(x, settings))).join('+')} ${formatDuration(s.split, unit())} après`);
     }
-    if (seq.timing && i > 0 && s.err !== null) {
+    const R = seq.steps[i];
+    if (i > 0 && s.gap != null && hasWindow(R)) {
+      const lo = R.minGap != null ? formatDuration(R.minGap, unit()) : '0';
+      const hi = R.maxGap != null ? formatDuration(R.maxGap, unit()) : '∞';
+      parts.push(`délai ${formatDuration(Math.round(s.gap), unit())} (fenêtre ${lo}–${hi})`);
+    } else if (seq.timing && i > 0 && s.err !== null) {
       const e = Math.round(s.err);
       parts.push(Math.abs(e) <= 2 ? 'pile dans le timing' : `${e > 0 ? '+' : '−'}${formatDuration(Math.abs(e), unit())} ${e > 0 ? 'tard' : 'tôt'}`);
+    }
+    for (const a of s.angles ?? []) {
+      const lbl = esc(inputLabel({ device: 'pad', code: a.code }, settings));
+      parts.push(a.target == null ? `${lbl} ${formatAngle(a.angle)}` : `${lbl} ${formatAngle(a.angle)} ${a.ok ? '✓' : `(attendu ${formatAngle(a.target)} ±${a.tol}°)`}`);
     }
     return parts.join(' · ') || 'OK';
   }
@@ -562,6 +605,7 @@ export function initTraining(api, getSettings) {
       })
       .join('');
 
+    renderTimeline(view);
     const extras = view?.extras ?? [];
     const holds = view?.holds ?? [];
     $('train-extras').innerHTML =
@@ -572,6 +616,49 @@ export function initTraining(api, getSettings) {
         : '') +
       (extras.length ? `<span class="muted">En trop :</span> ${extras.map((e) => `<span class="extra">${chips(e.inputs)}</span>`).join(' ')}` : '');
     publish();
+  }
+
+  // Frise : le modèle en haut, ton essai en bas, sur la même échelle de temps (fenêtres de délai en bandes)
+  function renderTimeline(view) {
+    const el = $('train-timeline');
+    if (!seq.steps.length) {
+      el.innerHTML = '';
+      return;
+    }
+    const W = 600;
+    const L = 64;
+    const R = 14;
+    const played = (view?.steps ?? []).filter((s) => s.at != null);
+    const extras = view?.extras ?? [];
+    // fin des fenêtres de délai (placées après l'étape précédente jouée, ou celle du modèle)
+    const winEnds = seq.steps.map((st, i) => (i > 0 && hasWindow(st) ? (view?.steps[i - 1]?.at ?? seq.steps[i - 1].t) + (st.maxGap ?? st.minGap ?? 0) : 0));
+    const tMax = Math.max(seq.steps.at(-1).t, ...played.map((s) => s.at), ...extras.map((e) => e.t), ...winEnds, 100) * 1.08;
+    const x = (t) => L + (t / tMax) * (W - L - R);
+    const yM = 22;
+    const yA = 58;
+    const col = { ok: '#3fdc8a', almost: '#f0b940', miss: '#ff6b81', pending: '#59607a', idle: '#59607a' };
+    let svg = `<text x="0" y="${yM + 4}" class="tl-lbl">Modèle</text><text x="0" y="${yA + 4}" class="tl-lbl">Ton essai</text>
+      <line x1="${L}" y1="${yM}" x2="${W - R}" y2="${yM}" class="tl-axis"/><line x1="${L}" y1="${yA}" x2="${W - R}" y2="${yA}" class="tl-axis"/>`;
+    // graduations
+    const step = tMax > 1500 ? 500 : tMax > 600 ? 200 : tMax > 250 ? 100 : 50;
+    for (let t = 0; t <= tMax; t += step) svg += `<line x1="${x(t)}" y1="${yA + 6}" x2="${x(t)}" y2="${yA + 10}" class="tl-tick"/><text x="${x(t)}" y="${yA + 22}" class="tl-t">${formatDuration(t, unit())}</text>`;
+    seq.steps.forEach((st, i) => {
+      svg += `<circle cx="${x(st.t)}" cy="${yM}" r="9" class="tl-model"/><text x="${x(st.t)}" y="${yM + 4}" class="tl-n">${i + 1}</text>`;
+      // fenêtre de délai, placée après l'étape précédente jouée (ou du modèle)
+      if (i > 0 && hasWindow(st)) {
+        const base = view?.steps[i - 1]?.at ?? seq.steps[i - 1].t;
+        const a = base + (st.minGap ?? 0);
+        const b = st.maxGap != null ? base + st.maxGap : tMax;
+        svg += `<rect x="${x(a)}" y="${yA - 11}" width="${Math.max(2, x(Math.min(b, tMax)) - x(a))}" height="22" rx="4" class="tl-win"><title>Fenêtre de l'étape ${i + 1}</title></rect>`;
+      }
+    });
+    for (const e of extras) svg += `<line x1="${x(e.t)}" y1="${yA - 8}" x2="${x(e.t)}" y2="${yA + 8}" class="tl-extra"><title>En trop</title></line>`;
+    (view?.steps ?? []).forEach((s, i) => {
+      if (s.at == null) return;
+      svg += `<line x1="${x(seq.steps[i].t)}" y1="${yM + 9}" x2="${x(s.at)}" y2="${yA - 9}" class="tl-link"/>`;
+      svg += `<circle cx="${x(s.at)}" cy="${yA}" r="9" fill="${col[s.status]}" class="tl-att"><title>Étape ${i + 1} : ${s.status === 'ok' ? 'OK' : esc(s.reason || s.status)}</title></circle><text x="${x(s.at)}" y="${yA + 4}" class="tl-n dark">${i + 1}</text>`;
+    });
+    el.innerHTML = `<svg viewBox="0 0 ${W} 86" class="timeline-svg">${svg}</svg>`;
   }
 
   function renderRecap() {
@@ -597,12 +684,12 @@ export function initTraining(api, getSettings) {
       ${weak}
       ${seq.hold.length && r.holdFails ? `<div class="weak">Maintien raté sur <b>${r.holdFails}</b> essai${r.holdFails > 1 ? 's' : ''} : ${chips(seq.hold)} pas gardé appuyé</div>` : ''}
       <table class="stat-top recap-table">
-        <tr><th>Étape</th><th>Réussi</th><th>Presque</th><th>Raté</th><th>Timing moyen</th></tr>
+        <tr><th>Étape</th><th>Réussi</th><th>Presque</th><th>Raté</th><th>Timing moyen</th>${r.perStep.some((p) => p.avgAngle != null) ? '<th>Angle moyen</th>' : ''}</tr>
         ${seq.steps
           .map((st, i) => {
             const p = r.perStep[i];
             return `<tr${i === r.weakest ? ' class="weak-row"' : ''}><td><span class="step-num">${i + 1}</span> ${chips(st.inputs)}</td>
-              <td class="c-ok">${pct(p.ok / r.attempts)}</td><td class="c-almost">${p.almost}</td><td class="c-miss">${p.miss}</td><td>${avgErr(p.avgErr)}</td></tr>`;
+              <td class="c-ok">${pct(p.ok / r.attempts)}</td><td class="c-almost">${p.almost}</td><td class="c-miss">${p.miss}</td><td>${avgErr(p.avgErr)}</td>${r.perStep.some((q) => q.avgAngle != null) ? `<td>${p.avgAngle != null ? formatAngle(p.avgAngle) : '—'}</td>` : ''}</tr>`;
           })
           .join('')}
       </table>
