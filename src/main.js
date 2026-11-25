@@ -458,7 +458,19 @@ function debugSnapshot(dir) {
     fake(ms, 'down', device, code);
     fake(ms + hold, 'up', device, code);
   };
-  if (process.env.IM_FAKE === 'reopen') {
+  if (process.env.IM_FAKE === 'templates') {
+    // Modèle Rocket League « Speedflip », test activé, conduite + speedflip factices
+    js(800, `document.querySelector('.tab[data-view="training"]').click(); document.getElementById('btn-seq-templates').click();`);
+    js(1100, `document.querySelector('.tpl-item[data-tpl="0"]').click();`);
+    js(1500, `document.getElementById('btn-train-toggle').click();`);
+    for (const [ms, code] of [[1700, 7], [1720, 1], [1760, 'ls:→']]) fake(ms, 'down', 'pad', code);
+    fake(1900, 'up', 'pad', 'ls:→');
+    const t = 2100;
+    for (const [ms, type, code] of [[t, 'down', 0], [t + 60, 'up', 0], [t + 100, 'down', 'ls:↖'], [t + 115, 'down', 0], [t + 150, 'up', 'ls:↖'],
+      [t + 150, 'down', 'ls:←'], [t + 160, 'up', 'ls:←'], [t + 160, 'down', 'ls:↙'], [t + 170, 'up', 'ls:↙'], [t + 170, 'down', 'ls:↓']]) fake(ms, type, 'pad', code);
+    js(3300, `document.getElementById('btn-seq-templates').click();`);
+    delay = 3700;
+  } else if (process.env.IM_FAKE === 'reopen') {
     // Rouvre l'onglet Entraînement pour vérifier que les essais sauvegardés sont rechargés
     js(800, `document.querySelector('.tab[data-view="training"]').click();`);
     delay = 2000;

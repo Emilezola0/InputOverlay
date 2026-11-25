@@ -98,7 +98,11 @@
       <aside class="card rec-list-card">
         <div class="rec-head">
           <h2>Séquences</h2>
-          <button id="btn-seq-new" class="btn">+ Nouvelle</button>
+          <div class="rec-head-btns">
+            <button id="btn-seq-templates" class="btn">Modèles</button>
+            <button id="btn-seq-new" class="btn">+ Nouvelle</button>
+          </div>
+          <div id="seq-templates" class="tpl-menu" hidden></div>
         </div>
         <div id="seq-list" class="rec-list"></div>
       </aside>
@@ -113,12 +117,34 @@
             <span class="spacer"></span>
             <button id="btn-seq-delete" class="btn danger">Supprimer</button>
           </div>
+          <div class="seq-meta">
+            <label>Catégorie <input id="seq-category" list="seq-categories" placeholder="ex. Rocket League" spellcheck="false" /></label>
+            <datalist id="seq-categories"></datalist>
+            <input id="seq-note" class="seq-note" placeholder="Notes (comment faire la séquence, bindings…)" spellcheck="false" />
+          </div>
           <div id="seq-capture-hint" class="capture-hint" hidden></div>
           <div id="seq-steps" class="seq-steps"></div>
           <div class="seq-options">
             <label>Tolérance de timing <span class="range"><input type="range" id="seq-tol" min="10" max="200" step="5" /><output></output></span></label>
             <label><input type="checkbox" id="seq-timing" /> Vérifier le timing</label>
-            <label><input type="checkbox" id="seq-ignore" /> Ignorer les appareils absents de la séquence</label>
+            <label><input type="checkbox" id="seq-sweep" /> Ignorer les directions de stick traversées</label>
+          </div>
+          <div class="seq-options">
+            <label>Début d'un essai
+              <select id="seq-trigger" class="select">
+                <option value="first">Au premier input de la séquence</option>
+                <option value="key">Avec une touche de départ</option>
+                <option value="auto">Automatique (n'importe quel input)</option>
+              </select>
+            </label>
+            <label id="seq-arm-row">Touche de départ <span id="seq-arm-key" class="chips"></span><button id="btn-seq-arm" class="btn">Choisir</button></label>
+            <label>Inputs pris en compte
+              <select id="seq-filter" class="select">
+                <option value="sequence">Seulement ceux de la séquence</option>
+                <option value="devices">Tous ceux des appareils utilisés</option>
+                <option value="all">Tous</option>
+              </select>
+            </label>
           </div>
         </div>
         <div class="train-bottom">

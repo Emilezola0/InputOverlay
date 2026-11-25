@@ -54,6 +54,14 @@ Publier une version (après `gh auth login`) :
   - **Presque** : un peu tôt/tard, accord incomplet ou joué en décalé, input en trop ;
   - **Raté** : étape non jouée ou timing trop loin.
 - **Récap** : nombre d'essais, % réussis, parfaits, série en cours, point faible, réussite et timing moyen par étape.
+- **Modèles intégrés** (bouton **Modèles**) : Rocket League (speedflip gauche/droite, half-flip, fast aerial, wavedash) et jeux de combat (quart de cercle, dragon punch, demi-cercle, dash). Le timing n'y est pas vérifié par défaut : réenregistre le modèle en le jouant toi-même pour l'activer.
+- **Catégories** et **notes** par séquence, pour ranger tes séquences par jeu.
+- **Début d'un essai** :
+  - *Au premier input de la séquence* (par défaut) : tout ce que tu fais avant est ignoré. Idéal en entraînement libre.
+  - *Avec une touche de départ* : appuie sur un bouton que tu n'utilises pas dans la séquence (ex. View / Share), puis fais la séquence dans les 5 s. Idéal en match, où tu sautes sans arrêt.
+  - *Automatique* : n'importe quel input démarre un essai.
+  - Fin : dès que la dernière étape est jouée, ou après une courte pause, ou au bout de la durée du modèle + une marge.
+- **Inputs pris en compte** : seulement ceux de la séquence, ceux des appareils utilisés, ou tous. **Directions de stick traversées** : en balayant le stick (↖ → ↓), les directions intermédiaires (← ↙) ne sont pas comptées en trop.
 - Le widget **Entraînement** de l'overlay montre le verdict et les étapes ratées pendant que tu joues.
 
 ## Raccourcis globaux

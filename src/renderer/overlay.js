@@ -22,7 +22,7 @@ function renderTraining() {
   const problems = t.phase === 'result' ? t.steps.filter((s) => s.status !== 'ok' && s.detail) : [];
   trainCard.firstElementChild.innerHTML = `
     <div class="ov-train-head"><b>${escHtml(t.name)}</b>${t.attempts ? `<span>${t.attempts} essai(s) · ${t.successRate}% réussis</span>` : ''}</div>
-    <div class="ov-verdict ${t.verdict ? 'v-' + t.verdict : ''}">${escHtml(t.verdictLabel)}${t.phase === 'result' && t.score !== null ? ` · ${t.score}%` : ''}</div>
+    <div class="ov-verdict ${t.armed ? 'v-parfait' : t.verdict ? 'v-' + t.verdict : ''}">${escHtml(t.verdictLabel)}${t.phase === 'result' && t.score !== null ? ` · ${t.score}%` : ''}</div>
     <div class="ov-steps">${t.steps.map((s) => `<span class="ov-step s-${t.phase === 'ready' ? 'pending' : s.status}">${escHtml(s.label)}</span>`).join('')}</div>
     ${problems.slice(0, 3).map((s) => `<div class="ov-detail">${escHtml(s.label)} : ${s.detail}</div>`).join('')}`;
 }

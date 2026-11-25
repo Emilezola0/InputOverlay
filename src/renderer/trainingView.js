@@ -1,10 +1,11 @@
 // Onglet « Entraînement » : éditeur de séquence modèle, test en direct, résultat et récap.
-import { buildSteps, evaluate, summarize, AttemptTracker, VERDICT_LABEL, keyOf } from './lib/training.js';
+import { buildSteps, evaluate, summarize, AttemptTracker, VERDICT_LABEL, keyOf, inputFilterOf } from './lib/training.js';
+import { TEMPLATES, fromTemplate } from './lib/templates.js';
 import { inputLabel, formatDuration, formatAccel } from './lib/labels.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-const DEFAULTS = { tolerance: 50, timing: true, ignoreOtherDevices: true, chordWindow: 40 };
+const DEFAULTS = { tolerance: 50, timing: true, chordWindow: 40, trigger: 'first', inputFilter: 'sequence', stickSweep: true, category: '', note: '' };
 
 export function initTraining(api, getSettings) {
   let settings = getSettings();
@@ -15,7 +16,8 @@ export function initTraining(api, getSettings) {
   let phase = 'ready'; // ready | running | result
   let live = null; // évaluation partielle pendant l'essai
   let last = null; // dernier résultat
-  let capture = null; // { mode: 'model'|'step', presses: [], timer }
+  let capture = null; // { mode: 'model'|'step'|'arm', presses: [], timer }
+  let armed = false; // touche de départ appuyée, en attente de l'essai
 
   const attempts = () => attemptsBySeq.get(seq?.id) ?? [];
   const chips = (inputs) =>
@@ -23,6 +25,10 @@ export function initTraining(api, getSettings) {
   const unit = () => settings.timeUnit;
 
   const tracker = new AttemptTracker({
+    onArm: (on) => {
+      armed = on;
+      renderTest();
+    },
     onProgress: (p) => {
       phase = 'running';
       live = p;
@@ -73,17 +79,56 @@ export function initTraining(api, getSettings) {
   }
 
   function renderList() {
+    const groups = new Map();
+    for (const s of sequences) {
+      const cat = s.category?.trim() || 'Sans catégorie';
+      if (!groups.has(cat)) groups.set(cat, []);
+      groups.get(cat).push(s);
+    }
+    const cats = [...groups.keys()].sort((a, b) => (a === 'Sans catégorie') - (b === 'Sans catégorie') || a.localeCompare(b));
     $('seq-list').innerHTML = sequences.length
-      ? sequences
+      ? cats
           .map(
-            (s) => `<button class="rec-item${s.id === seq?.id ? ' active' : ''}" data-id="${esc(s.id)}">
-              <span class="rec-item-name">${esc(s.name)}</span>
-              <span class="rec-item-meta seq-preview">${s.steps.length ? s.steps.map((st) => st.inputs.map((i) => esc(inputLabel(i, settings))).join('+')).join(' ') : 'vide'}</span>
-            </button>`
+            (cat) => `<div class="seq-group">${esc(cat)}</div>` +
+              groups.get(cat)
+                .map(
+                  (s) => `<button class="rec-item${s.id === seq?.id ? ' active' : ''}" data-id="${esc(s.id)}">
+                    <span class="rec-item-name">${esc(s.name)}</span>
+                    <span class="rec-item-meta seq-preview">${s.steps.length ? s.steps.map((st) => st.inputs.map((i) => esc(inputLabel(i, settings))).join('+')).join(' ') : 'vide'}</span>
+                  </button>`
+                )
+                .join('')
           )
           .join('')
-      : '<div class="rec-none">Aucune séquence.<br>Clique sur <b>+ Nouvelle</b>.</div>';
+      : '<div class="rec-none">Aucune séquence.<br>Clique sur <b>Modèles</b> pour partir d\'un exemple, ou sur <b>+ Nouvelle</b>.</div>';
+    $('seq-categories').innerHTML = cats.filter((c) => c !== 'Sans catégorie').map((c) => `<option value="${esc(c)}">`).join('');
   }
+
+  // Modèles intégrés
+  function renderTemplates() {
+    const cats = [...new Set(TEMPLATES.map((t) => t.category))];
+    $('seq-templates').innerHTML = cats
+      .map(
+        (cat) => `<h3>${esc(cat)}</h3>` +
+          TEMPLATES.map((t, i) => (t.category !== cat ? '' : `<button class="tpl-item" data-tpl="${i}">${esc(t.name)}<small>${t.steps.map((st) => st.inputs.map((x) => esc(inputLabel(x, settings))).join('+')).join('  ')}</small></button>`)).join('')
+      )
+      .join('');
+  }
+  $('btn-seq-templates').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    renderTemplates();
+    $('seq-templates').hidden = !$('seq-templates').hidden;
+  });
+  document.addEventListener('click', (ev) => {
+    if (!ev.target.closest('#seq-templates')) $('seq-templates').hidden = true;
+  });
+  $('seq-templates').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('.tpl-item');
+    if (!b) return;
+    $('seq-templates').hidden = true;
+    const created = await api.saveSequence(fromTemplate(TEMPLATES[Number(b.dataset.tpl)]));
+    await refreshList(created.id);
+  });
 
   $('seq-list').addEventListener('click', (ev) => {
     const b = ev.target.closest('.rec-item');
@@ -108,7 +153,11 @@ export function initTraining(api, getSettings) {
     $('seq-name').value = seq.name;
     $('seq-tol').value = seq.tolerance;
     $('seq-timing').checked = seq.timing;
-    $('seq-ignore').checked = seq.ignoreOtherDevices;
+    $('seq-sweep').checked = seq.stickSweep !== false;
+    $('seq-trigger').value = seq.trigger;
+    $('seq-filter').value = inputFilterOf(seq);
+    $('seq-category').value = seq.category ?? '';
+    $('seq-note').value = seq.note ?? '';
     renderAll();
   }
 
@@ -159,9 +208,30 @@ export function initTraining(api, getSettings) {
     seq.timing = $('seq-timing').checked;
     changed();
   });
-  $('seq-ignore').addEventListener('change', () => {
-    seq.ignoreOtherDevices = $('seq-ignore').checked;
+  $('seq-sweep').addEventListener('change', () => {
+    seq.stickSweep = $('seq-sweep').checked;
     changed();
+  });
+  $('seq-trigger').addEventListener('change', () => {
+    seq.trigger = $('seq-trigger').value;
+    changed();
+    if (seq.trigger === 'key' && !seq.armKey) startCapture('arm');
+  });
+  $('seq-filter').addEventListener('change', () => {
+    seq.inputFilter = $('seq-filter').value;
+    changed();
+  });
+  $('seq-category').addEventListener('change', () => {
+    seq.category = $('seq-category').value.trim();
+    changed();
+  });
+  $('seq-note').addEventListener('change', () => {
+    seq.note = $('seq-note').value.trim();
+    changed();
+  });
+  $('btn-seq-arm').addEventListener('click', () => {
+    if (capture?.mode === 'arm') stopCapture(false);
+    else startCapture('arm');
   });
 
   // Édition des étapes : supprimer, modifier l'écart
@@ -205,6 +275,11 @@ export function initTraining(api, getSettings) {
     // retire le clic qui a servi à arrêter la capture
     if (source === 'button') while (presses.length && keyOf(presses.at(-1)) === 'mouse:1') presses = presses.slice(0, -1);
     if (!presses.length) return;
+    if (c.mode === 'arm') {
+      seq.armKey = { device: presses[0].device, code: presses[0].code };
+      changed();
+      return;
+    }
     const steps = buildSteps(presses, seq.chordWindow);
     if (c.mode === 'model') seq.steps = steps;
     else {
@@ -228,12 +303,15 @@ export function initTraining(api, getSettings) {
     $('btn-seq-capture').textContent = capture?.mode === 'model' ? '■ Terminer' : '● Enregistrer le modèle';
     $('btn-seq-capture').classList.toggle('recording', capture?.mode === 'model');
     $('btn-seq-add').textContent = capture?.mode === 'step' ? 'Annuler' : '+ Étape';
+    $('btn-seq-arm').textContent = capture?.mode === 'arm' ? 'Annuler' : 'Choisir';
     hint.hidden = !capture;
     if (!capture) return;
     hint.innerHTML =
       capture.mode === 'model'
         ? `Joue ta séquence modèle… (${capture.presses.length} input${capture.presses.length > 1 ? 's' : ''}) — arrêt auto après 1,5 s sans input, ou clique sur Terminer.`
-        : 'Appuie sur le ou les inputs de la nouvelle étape…';
+        : capture.mode === 'arm'
+          ? 'Appuie sur la touche de départ (un bouton que tu n\'utilises pas dans la séquence, ex. View / Share ou une touche du clavier)…'
+          : 'Appuie sur le ou les inputs de la nouvelle étape…';
   }
 
   // ---------------------------------------------------------------- Test
@@ -262,6 +340,7 @@ export function initTraining(api, getSettings) {
       if (ev.type === 'up') return;
       capture.presses.push({ device: ev.device, code: ev.code, t: ev.t });
       clearTimeout(capture.timer);
+      if (capture.mode === 'arm') return stopCapture(true);
       if (capture.mode === 'step') capture.timer = setTimeout(() => stopCapture(true), seq.chordWindow + 20);
       else capture.timer = setTimeout(() => stopCapture(true), 1500);
       renderCapture();
@@ -279,6 +358,8 @@ export function initTraining(api, getSettings) {
 
   function renderSteps() {
     $('seq-tol').parentElement.querySelector('output').textContent = formatDuration(seq.tolerance, unit());
+    $('seq-arm-row').hidden = seq.trigger !== 'key';
+    $('seq-arm-key').innerHTML = seq.armKey ? chips([seq.armKey]) : '<span class="muted">aucune</span>';
     if (!seq.steps.length) {
       $('seq-steps').innerHTML = '<div class="rec-none">Séquence vide : clique sur <b>● Enregistrer le modèle</b> et joue la séquence attendue.</div>';
       return;
@@ -328,8 +409,9 @@ export function initTraining(api, getSettings) {
     else if (phase === 'result' && last)
       status.innerHTML = `<span class="verdict v-${last.verdict}">${VERDICT_LABEL[last.verdict]}</span>
         <span class="score">${Math.round(last.score * 100)}%</span>
-        <span class="muted">Essai n°${attempts().length} · rejoue quand tu veux</span>`;
-    else status.innerHTML = '<span class="verdict ready">Prêt : joue la séquence !</span>';
+        <span class="muted">Essai n°${attempts().length} · ${seq.trigger === 'key' && seq.armKey ? `rejoue : ${chips([seq.armKey])} puis la séquence` : 'rejoue quand tu veux'}</span>`;
+    else status.innerHTML = `<span class="verdict ready">${readyText()}</span>`;
+    if (active && armed && phase !== 'running') status.innerHTML = '<span class="verdict armed">Armé : vas-y !</span>';
 
     $('train-result').innerHTML = seq.steps
       .map((st, i) => {
@@ -386,6 +468,16 @@ export function initTraining(api, getSettings) {
         .join('')}</div>`;
   }
 
+  function readyText() {
+    if (seq.trigger === 'key') {
+      return seq.armKey
+        ? `Prêt : appuie sur ${chips([seq.armKey])} puis fais la séquence`
+        : 'Choisis une touche de départ dans les options';
+    }
+    if (seq.trigger === 'first') return `Prêt : l'essai démarre dès ${chips(seq.steps[0].inputs)}`;
+    return 'Prêt : joue la séquence !';
+  }
+
   // État envoyé à l'overlay
   function publish() {
     const view = phase === 'running' ? live : last;
@@ -400,7 +492,8 @@ export function initTraining(api, getSettings) {
         detail: view?.steps[i] && view.steps[i].status !== 'pending' ? stepDetail(view.steps[i], i) : '',
       })),
       verdict: phase === 'result' ? last?.verdict : null,
-      verdictLabel: phase === 'result' && last ? VERDICT_LABEL[last.verdict] : phase === 'running' ? 'En cours…' : 'Prêt',
+      verdictLabel: armed && phase !== 'running' ? 'Armé : vas-y !' : phase === 'result' && last ? VERDICT_LABEL[last.verdict] : phase === 'running' ? 'En cours…' : 'Prêt',
+      armed,
       score: last ? Math.round(last.score * 100) : null,
       attempts: list.length,
       successRate: list.length ? Math.round((list.filter((a) => a.verdict === 'parfait' || a.verdict === 'reussi').length / list.length) * 100) : null,

@@ -2,6 +2,14 @@
 // Une séquence = liste d'étapes ; une étape = un ou plusieurs inputs appuyés ensemble, à un temps t (ms).
 
 export const keyOf = (i) => `${i.device}:${i.code}`;
+const isStickDir = (i) => i.device === 'pad' && typeof i.code === 'string' && i.code.includes(':');
+export const sequenceKeys = (seq) => new Set(seq.steps.flatMap((st) => st.inputs.map(keyOf)));
+
+/** Quels inputs comptent : 'sequence' (seulement ceux de la séquence), 'devices' (appareils utilisés), 'all'. */
+export function inputFilterOf(seq) {
+  if (seq.inputFilter) return seq.inputFilter;
+  return seq.ignoreOtherDevices === false ? 'all' : 'devices'; // anciennes séquences
+}
 
 /** Regroupe des appuis {device, code, t} en étapes (accords) selon une fenêtre en ms. */
 export function buildSteps(presses, chordWindow = 40) {
@@ -84,6 +92,11 @@ function align(ref, att) {
  */
 export function evaluate(sequence, presses, { partial = false } = {}) {
   const ref = sequence.steps;
+  // directions de stick traversées en balayant (ex. ↖ → ← → ↙ → ↓) : on ignore celles absentes du modèle
+  if (sequence.stickSweep !== false) {
+    const keys = sequenceKeys(sequence);
+    presses = presses.filter((p) => !isStickDir(p) || keys.has(keyOf(p)));
+  }
   const att = buildSteps(presses, sequence.chordWindow ?? 40);
   const tol = sequence.tolerance ?? 50;
   const checkTiming = sequence.timing !== false;
@@ -199,30 +212,54 @@ export function summarize(sequence, attempts) {
 }
 
 /**
- * Détecte automatiquement début et fin d'un essai à partir du flux d'inputs.
- * onProgress(evaluation partielle) pendant l'essai, onResult(évaluation finale) à la fin.
+ * Détecte le début et la fin d'un essai à partir du flux d'inputs.
+ * Déclenchement (sequence.trigger) :
+ *  - 'first' : l'essai commence au premier input de l'étape 1 (les autres inputs avant sont ignorés) ;
+ *  - 'key'   : il faut d'abord appuyer sur la touche de départ (sequence.armKey), puis jouer l'étape 1 ;
+ *  - 'auto'  : n'importe quel input pris en compte démarre un essai.
+ * Fin : dernière étape jouée, ou plus d'input pendant un moment, ou durée maximale dépassée.
  */
 export class AttemptTracker {
-  constructor({ onProgress, onResult }) {
+  constructor({ onProgress, onResult, onArm }) {
     this.onProgress = onProgress;
     this.onResult = onResult;
+    this.onArm = onArm;
     this.sequence = null;
     this.presses = [];
     this.timer = null;
+    this.armed = false;
+    this.armTimer = null;
   }
 
   setSequence(seq) {
     this.cancel();
     this.sequence = seq;
+    this.keys = seq ? sequenceKeys(seq) : new Set();
+    this.firstKeys = seq?.steps[0] ? new Set(seq.steps[0].inputs.map(keyOf)) : new Set();
   }
 
   cancel() {
     clearTimeout(this.timer);
     this.presses = [];
+    this.setArmed(false);
   }
 
   get running() {
     return this.presses.length > 0;
+  }
+
+  get trigger() {
+    return this.sequence?.trigger || 'auto';
+  }
+
+  setArmed(on) {
+    clearTimeout(this.armTimer);
+    if (this.armed !== on) {
+      this.armed = on;
+      this.onArm?.(on);
+    }
+    // sans input dans les 5 s, la touche de départ est oubliée
+    if (on) this.armTimer = setTimeout(() => this.setArmed(false), 5000);
   }
 
   idleTimeout() {
@@ -231,15 +268,35 @@ export class AttemptTracker {
     return Math.max(600, Math.max(0, ...gaps) * 1.6 + (s.tolerance ?? 50) * 3);
   }
 
+  maxDuration() {
+    const s = this.sequence;
+    return (s.steps.at(-1)?.t ?? 0) * 1.5 + Math.max(700, (s.tolerance ?? 50) * 6);
+  }
+
   relevant(ev) {
     if (ev.type === 'up') return false;
-    const s = this.sequence;
-    if (s.ignoreOtherDevices === false) return true;
-    return s.steps.some((st) => st.inputs.some((i) => i.device === ev.device));
+    const filter = inputFilterOf(this.sequence);
+    if (filter === 'all') return true;
+    if (filter === 'sequence') return this.keys.has(`${ev.device}:${ev.code}`);
+    return this.sequence.steps.some((st) => st.inputs.some((i) => i.device === ev.device));
   }
 
   onEvent(ev) {
-    if (!this.sequence?.steps.length || !this.relevant(ev)) return;
+    if (!this.sequence?.steps.length || ev.type === 'up') return;
+    const key = `${ev.device}:${ev.code}`;
+    const arm = this.sequence.armKey;
+    // touche de départ : arme le prochain essai, n'est jamais comptée comme input
+    if (this.trigger === 'key' && arm && key === keyOf(arm)) {
+      if (!this.running) this.setArmed(true);
+      return;
+    }
+    if (!this.relevant(ev)) return;
+    if (!this.running) {
+      if (this.trigger === 'key' && !this.armed) return;
+      if (this.trigger !== 'auto' && !this.firstKeys.has(key)) return;
+      this.setArmed(false);
+      this.startT = ev.t;
+    }
     this.presses.push({ device: ev.device, code: ev.code, t: ev.t });
     clearTimeout(this.timer);
     const partial = evaluate(this.sequence, this.presses, { partial: true });
@@ -253,6 +310,7 @@ export class AttemptTracker {
     if (partial.lastMatchedRef === lastIdx) {
       wait = lastStep.missing.length ? cw + (this.sequence.tolerance ?? 50) * 3 : cw + 30;
     }
+    if (this.trigger !== 'auto') wait = Math.min(wait, Math.max(0, this.startT + this.maxDuration() - ev.t));
     this.timer = setTimeout(() => this.finish(), wait);
   }
 
