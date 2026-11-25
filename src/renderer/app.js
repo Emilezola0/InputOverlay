@@ -34,7 +34,7 @@ api.onClearHistory(() => history.clear());
 
 // ---- Enregistrement
 const recordings = initRecordings(api, () => settings);
-training = initTraining(api, () => settings, hub);
+training = initTraining(api, () => settings, hub, (s) => gamepad.setGuides(s.angleGuides));
 const recBtn = document.getElementById('btn-rec');
 const recLabel = document.getElementById('rec-label');
 async function toggleRecording(source) {
@@ -195,8 +195,19 @@ renderUpdate(await api.getUpdateState());
 api.onUpdateState(renderUpdate);
 document.getElementById('btn-update-check').addEventListener('click', () => api.checkUpdates());
 
+// ---- Bouton « Overlay » de l'en-tête : afficher / masquer (utile si on l'a fermé)
+const ovBtn = document.getElementById('btn-overlay');
+function renderOverlayBtn() {
+  const on = settings.overlay.visible;
+  ovBtn.textContent = on ? 'Overlay : affiché' : 'Overlay : masqué · afficher';
+  ovBtn.classList.toggle('ok', on);
+}
+ovBtn.addEventListener('click', () => api.setSettings({ overlay: { visible: !settings.overlay.visible } }));
+renderOverlayBtn();
+
 api.onSettings((s) => {
   settings = s;
+  renderOverlayBtn();
   renderShortcuts();
   widgets.forEach((w) => w.setSettings(s));
   recordings.setSettings(s);

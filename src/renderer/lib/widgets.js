@@ -129,6 +129,17 @@ const TICKS = Array.from({ length: 24 }, (_, i) => {
   return `<path class="${big ? 'tick big' : 'tick'}" d="M${p(r1)} L${p(r2)}"/>`;
 }).join('');
 
+// Point à l'angle a (0 = haut, + = droite) et au rayon r autour du centre du stick
+const polar = (a, r) => {
+  const rad = (a * Math.PI) / 180;
+  return `${(Math.sin(rad) * r).toFixed(1)} ${(-Math.cos(rad) * r).toFixed(1)}`;
+};
+// Secteur d'anneau entre a1 et a2 (sens horaire), rayons r1 → r2
+function wedge(a1, a2, r1, r2) {
+  const large = a2 - a1 > 180 ? 1 : 0;
+  return `M${polar(a1, r2)} A${r2} ${r2} 0 ${large} 1 ${polar(a2, r2)} L${polar(a2, r1)} A${r1} ${r1} 0 ${large} 0 ${polar(a1, r1)} Z`;
+}
+
 export class GamepadWidget {
   constructor(settings) {
     this.el = document.createElement('div');
@@ -148,6 +159,8 @@ export class GamepadWidget {
         <g class="stick-ticks" transform="translate(250 165)">${TICKS}</g>
         <line class="stick-ray" data-ray="2" x1="250" y1="165" x2="250" y2="165"/>
         <circle class="stick" data-s="2" data-b="11" cx="250" cy="165" r="18"/>
+        <g class="stick-guides" data-guides="0" transform="translate(110 105)"></g>
+        <g class="stick-guides" data-guides="2" transform="translate(250 165)"></g>
         <text class="stick-angle" data-angle="0" x="110" y="152"></text>
         <text class="stick-angle" data-angle="2" x="250" y="212"></text>
         <rect class="p-btn" data-b="12" x="138" y="136" width="20" height="24" rx="3"/>
@@ -172,7 +185,33 @@ export class GamepadWidget {
     ]);
     this.triggers = [...this.el.querySelectorAll('.trigger')].map((g) => [Number(g.dataset.t), g.querySelector('.t-fill'), g]);
     this.status = this.el.querySelector('.pad-status');
+    this.guideGroups = { ls: this.el.querySelector('[data-guides="0"]'), rs: this.el.querySelector('[data-guides="2"]') };
+    this.guides = [];
     this.setSettings(settings);
+  }
+
+  /**
+   * Angles à prendre (entraînement) : [{ stick: 'ls'|'rs', angle, tol, step, next, measured, ok }].
+   * Secteur vert = zone attendue ; trait = dernier angle joué (vert si bon, rouge sinon).
+   */
+  setGuides(guides = []) {
+    const sig = JSON.stringify(guides);
+    if (sig === this._guideSig) return;
+    this._guideSig = sig;
+    this.guides = guides;
+    for (const [stick, g] of Object.entries(this.guideGroups)) {
+      const list = guides.filter((x) => x.stick === stick);
+      g.innerHTML = list
+        .map((x) => {
+          const cls = `guide${x.next ? ' next' : ''}`;
+          let out = `<path class="${cls}" data-a="${x.angle}" data-tol="${x.tol}" d="${wedge(x.angle - x.tol, x.angle + x.tol, 33, 52)}"/>`;
+          out += `<path class="guide-mid${x.next ? ' next' : ''}" d="M${polar(x.angle, 10)} L${polar(x.angle, 56)}"/>`;
+          if (list.length > 1) out += `<text class="guide-n" x="${polar(x.angle, 62).split(' ')[0]}" y="${(Number(polar(x.angle, 62).split(' ')[1]) + 4).toFixed(1)}">${x.step}</text>`;
+          if (x.measured != null) out += `<path class="guide-hit ${x.ok ? 'ok' : 'bad'}" d="M${polar(x.measured, 30)} L${polar(x.measured, 56)}"/>`;
+          return out;
+        })
+        .join('');
+    }
   }
 
   setSettings(settings) {
@@ -201,8 +240,15 @@ export class GamepadWidget {
       ray.setAttribute('x2', (cx + (show ? (ax / m) * 36 * m : 0)).toFixed(1));
       ray.setAttribute('y2', (cy + (show ? (ay / m) * 36 * m : 0)).toFixed(1));
       ray.classList.toggle('strong', m > 0.5);
-      const txt = show ? formatAngle(stickAngle(ax, ay)) : '';
+      const cur = stickAngle(ax, ay);
+      const txt = show ? formatAngle(cur) : '';
       if (label.textContent !== txt) label.textContent = txt;
+      // stick dans la zone attendue : le secteur s'allume
+      const group = this.guideGroups[axis === 0 ? 'ls' : 'rs'];
+      for (const w of group.querySelectorAll('.guide')) {
+        const d = ((((cur - Number(w.dataset.a)) % 360) + 540) % 360) - 180;
+        w.classList.toggle('hit', m > 0.5 && Math.abs(d) <= Number(w.dataset.tol));
+      }
     }
     for (const [i, fill, g] of this.triggers) {
       const v = p.values[i] ?? 0;

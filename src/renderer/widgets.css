@@ -129,3 +129,15 @@
 .stick-ray.strong { stroke: var(--pad); }
 .stick-angle { fill: var(--text, #e6e8ef); font: 700 13px 'Segoe UI', sans-serif; text-anchor: middle; }
 .chip small.ang { font-weight: 600; font-size: 10px; opacity: 0.85; }
+
+/* Angle à prendre (entraînement) */
+.stick-guides { pointer-events: none; }
+.stick-guides .guide { fill: rgba(63, 220, 138, 0.25); stroke: rgba(63, 220, 138, 0.6); stroke-width: 1.2; }
+.stick-guides .guide.next { fill: rgba(63, 220, 138, 0.45); stroke: #3fdc8a; stroke-width: 2; }
+.stick-guides .guide.hit { fill: rgba(63, 220, 138, 0.85); stroke: #3fdc8a; }
+.stick-guides .guide-mid { stroke: rgba(63, 220, 138, 0.7); stroke-width: 2; stroke-dasharray: 3 3; }
+.stick-guides .guide-mid.next { stroke: #3fdc8a; }
+.stick-guides .guide-n { fill: #3fdc8a; font: 700 10px 'Segoe UI', sans-serif; text-anchor: middle; }
+.stick-guides .guide-hit { stroke-width: 3; stroke-linecap: round; }
+.stick-guides .guide-hit.ok { stroke: #e6ffe9; }
+.stick-guides .guide-hit.bad { stroke: #ff6b81; }

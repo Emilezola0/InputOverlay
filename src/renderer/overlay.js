@@ -128,6 +128,33 @@ function renderToolbar() {
   document.getElementById('tb-lock').textContent = `🔒 Verrouiller${lock ? ` (${lock})` : ''}`;
 }
 
+// Mode édition : la barre d'outils s'ajoute au-dessus des widgets. Pour que les widgets ne bougent pas
+// à l'écran, la fenêtre monte de la hauteur de la barre en entrant en édition et redescend en sortant.
+let wasEditing = null;
+let toolbarH = 0;
+function keepWidgetsInPlace(nowEditing) {
+  if (wasEditing === null || wasEditing === nowEditing) {
+    wasEditing = nowEditing;
+    return;
+  }
+  wasEditing = nowEditing;
+  const shift = (h) => {
+    api.overlayMove(window.screenX, window.screenY + h);
+    api.overlayMove(null, null, true); // sauvegarde la position
+  };
+  if (nowEditing) {
+    requestAnimationFrame(() => {
+      toolbarH = measureToolbar();
+      shift(-toolbarH);
+    });
+  } else if (toolbarH) shift(toolbarH);
+}
+function measureToolbar() {
+  const tb = document.getElementById('toolbar');
+  const r = tb.getBoundingClientRect();
+  return r.height ? Math.round(r.height + parseFloat(getComputedStyle(tb).marginBottom || 0)) : 0;
+}
+
 function apply() {
   const o = settings.overlay;
   const sig = [o.keyboard, o.mouse, o.gamepad, o.history, o.training].join('|');
@@ -146,9 +173,12 @@ function apply() {
   root.className = o.direction;
   content.style.zoom = o.scale;
   root.style.opacity = o.opacity;
+  if (wasEditing && editing()) toolbarH = measureToolbar() || toolbarH; // la barre peut changer de hauteur
   document.body.classList.toggle('editing', editing());
+  keepWidgetsInPlace(editing());
   renderToolbar();
   renderTraining();
+  applyGuides();
 }
 
 // La fenêtre s'adapte à la taille du contenu, sans jamais dépasser l'écran
@@ -199,6 +229,9 @@ document.addEventListener('click', (ev) => {
     case 'lock':
       flush();
       return api.setSettings({ overlay: { locked: true } });
+    case 'close':
+      flush();
+      return api.setSettings({ overlay: { visible: false } });
   }
 });
 
@@ -254,9 +287,14 @@ api.onSettings((s) => {
   apply();
 });
 api.onClearHistory(() => history?.clear());
+function applyGuides() {
+  const pad = widgets.find((w) => w instanceof GamepadWidget);
+  pad?.setGuides(training?.active ? training.angleGuides ?? [] : []);
+}
 api.onTrainingState((s) => {
   training = s;
   renderTraining();
+  applyGuides();
 });
 
 // Indicateur REC pendant un enregistrement

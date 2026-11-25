@@ -146,10 +146,21 @@ function createOverlayWindow() {
     settings.overlay.position = { x, y };
     saveSettingsSoon();
   });
+  // fermer l'overlay (Alt+F4…) le masque seulement : le bouton « Overlay » de l'appli le réaffiche
+  overlayWin.on('close', (e) => {
+    if (quitting) return;
+    e.preventDefault();
+    updateSettings({ overlay: { visible: false } });
+  });
+  overlayWin.on('session-end', () => (quitting = true)); // arrêt / déconnexion de Windows
   overlayWin.on('closed', () => (overlayWin = null));
 }
 
+let quitting = false;
+app.on('before-quit', () => (quitting = true));
+
 function applyOverlaySettings() {
+  if ((!overlayWin || overlayWin.isDestroyed()) && settings.overlay.visible && app.isReady() && !quitting) createOverlayWindow();
   if (!overlayWin || overlayWin.isDestroyed()) return;
   const o = settings.overlay;
   overlayWin.setIgnoreMouseEvents(o.locked);
@@ -491,6 +502,11 @@ function debugSnapshot(dir) {
       js(1500, `document.body.click(); document.getElementById('btn-seq-templates').click();`);
       js(1700, `document.querySelector('.tpl-item[data-tpl="0"]').click();`);
       js(2000, `document.getElementById('btn-train-toggle').click();`);
+      if (process.env.IM_GUIDES) {
+        // manette visible dans l'overlay, stick gauche simulé à ~38° à gauche (dans la zone attendue)
+        setTimeout(() => updateSettings({ overlay: { locked: true, keyboard: 'off', gamepad: true, history: false, training: true } }), 1800);
+        setTimeout(() => overlayWin.webContents.executeJavaScript(`navigator.getGamepads = () => [{ id: 'Manette simulée', index: 0, mapping: 'standard', connected: true, axes: [-0.62, -0.78, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) }]; 0;`), 2100);
+      }
       for (const [ms, code] of [[2200, 7], [2220, 5], [2260, 'ls:→']]) fake(ms, 'down', 'pad', code);
       fake(2400, 'up', 'pad', 'ls:→');
       const t = 2600;
@@ -523,6 +539,25 @@ function debugSnapshot(dir) {
     const padJs = `navigator.getGamepads = () => [{ id: 'Manette simulée', index: 0, mapping: 'standard', connected: true, axes: [-0.57, -0.82, 0.98, -0.17], buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: i === 0, value: i === 7 ? 0.6 : i === 0 ? 1 : 0 })) }]; 0;`;
     setTimeout(() => overlayWin.webContents.executeJavaScript(padJs), 900);
     delay = 1800;
+  } else if (process.env.IM_FAKE === 'lock-shift') {
+    // Position des widgets à l'écran : verrouillé → déverrouillé → verrouillé, puis fermeture et réouverture
+    const where = (label) => setTimeout(async () => {
+      if (!overlayWin || overlayWin.isDestroyed()) return console.log(`[lock-shift] ${label} : fenêtre détruite`);
+      const top = await overlayWin.webContents.executeJavaScript(`Math.round(window.screenY + document.getElementById('content').getBoundingClientRect().top)`);
+      console.log(`[lock-shift] ${label} : widgets à y=${top}, fenêtre ${JSON.stringify(overlayWin.getBounds())}, visible=${overlayWin.isVisible()}`);
+    }, 0);
+    setTimeout(() => updateSettings({ overlay: { locked: true, visible: true, keyboard: 'gaming', history: true, position: { x: 300, y: 500 } } }), 400);
+    setTimeout(() => { overlayWin.setPosition(300, 500); }, 600);
+    setTimeout(() => where('verrouillé'), 1200);
+    setTimeout(() => updateSettings({ overlay: { locked: false } }), 1400);
+    setTimeout(() => where('déverrouillé'), 2200);
+    setTimeout(() => updateSettings({ overlay: { locked: true } }), 2400);
+    setTimeout(() => where('reverrouillé'), 3200);
+    setTimeout(() => overlayWin.close(), 3400);
+    setTimeout(() => where('après fermeture'), 3800);
+    setTimeout(() => updateSettings({ overlay: { visible: true } }), 4000);
+    setTimeout(() => where('réaffiché'), 4600);
+    delay = 4900;
   } else if (process.env.IM_FAKE === 'reopen') {
     // Rouvre l'onglet Entraînement pour vérifier que les essais sauvegardés sont rechargés
     js(800, `document.querySelector('.tab[data-view="training"]').click();`);

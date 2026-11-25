@@ -8,7 +8,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 const DEFAULTS = { tolerance: 50, timing: true, chordWindow: 40, trigger: 'first', inputFilter: 'sequence', stickSweep: true, checkAngles: false, category: '', note: '' };
 const num = (v) => (v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
 
-export function initTraining(api, getSettings, hub = null) {
+export function initTraining(api, getSettings, hub = null, onState = null) {
   let settings = getSettings();
   let sequences = [];
   let seq = null;
@@ -710,10 +710,30 @@ export function initTraining(api, getSettings, hub = null) {
   }
 
   // État envoyé à l'overlay
+  // Angles à prendre pour la manette (Live et overlay) : seulement pendant un test avec « Vérifier les angles »
+  function angleGuides(view) {
+    if (!active || !seq?.checkAngles) return [];
+    const nextIdx = phase === 'running' ? (view?.steps ?? []).findIndex((s) => s.status === 'pending') : 0;
+    const out = [];
+    seq.steps.forEach((st, i) => {
+      for (const inp of st.inputs) {
+        if (!isStickInput(inp) || inp.angle == null) continue;
+        const m = phase !== 'ready' ? view?.steps[i]?.angles?.find((a) => a.code === inp.code) : null;
+        out.push({ stick: inp.code.slice(0, 2), angle: inp.angle, tol: inp.angleTol ?? 15, step: i + 1, next: i === nextIdx, measured: m?.angle ?? null, ok: m ? m.ok : null });
+      }
+    });
+    // l'étape « suivante » sans angle : on met en avant la première zone
+    if (out.length && !out.some((g) => g.next)) out[0].next = true;
+    return out;
+  }
+
   function publish() {
     const view = phase === 'running' ? live : last;
     const list = attempts();
+    const guides = angleGuides(view);
+    onState?.({ active: active && !!seq, angleGuides: guides });
     api.setTrainingState({
+      angleGuides: guides,
       active: active && !!seq,
       name: seq?.name ?? '',
       phase,

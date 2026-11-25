@@ -36,7 +36,7 @@ Publier une version (après `gh auth login`) :
 - **Live** : clavier complet (AZERTY/QWERTY), souris, manette (Xbox/PS), touches allumées en temps réel.
 - **Historique** : chaque input avec sa durée d'appui et l'écart depuis le précédent (ms ou frames), appuis simultanés regroupés, filtres par appareil, pause.
 - **Overlay** : fenêtre transparente toujours au premier plan, widgets au choix, taille/opacité/disposition réglables.
-- **Réglage sur place** : déverrouille l'overlay (Ctrl+Maj+L) pour le régler directement par-dessus le jeu. Une barre d'outils permet d'afficher ou masquer chaque widget, et de changer la taille globale, l'opacité et la disposition. Sur chaque widget : −/+, molette ou poignée d'angle pour sa taille, × pour le masquer. On le déplace en le faisant glisser.
+- **Réglage sur place** : déverrouille l'overlay (Ctrl+Maj+L) pour le régler directement par-dessus le jeu. Une barre d'outils permet d'afficher ou masquer chaque widget, et de changer la taille globale, l'opacité et la disposition. Sur chaque widget : −/+, molette ou poignée d'angle pour sa taille, × pour le masquer. On le déplace en le faisant glisser. Les widgets restent au même endroit quand on verrouille. ✕ masque l'overlay, et le bouton **Overlay** en haut de l'appli le réaffiche, même s'il a été fermé.
 
 ## V2 : enregistrements
 - Bouton **● Enregistrer** (ou Ctrl+Maj+R, même en jeu) : capture tout avec un horodatage précis ; un badge REC apparaît sur l'overlay.
@@ -59,7 +59,7 @@ Publier une version (après `gh auth login`) :
 - **Contrôles** (bouton **Contrôles**) : choisis le bouton de chaque action (Sauter, Boost, Air roll…). Les modèles les utilisent, et les séquences déjà créées depuis un modèle sont mises à jour quand tu les changes. Un ⚠ signale deux actions sur le même bouton.
 - **À maintenir pendant tout l'essai** : des inputs à garder appuyés (ex. Accélérer + Boost pour le speedflip). Les relâcher ou ne pas les tenir donne « Presque ».
 - **Fenêtre de délai** (⏱ min–max entre deux étapes) : par exemple « air roll pas avant 100 ms ni après 200 ms après l'annulation ». Elle est vérifiée même sans « Vérifier le timing ».
-- **Angles du stick** : 0° = haut, « 35° G » = 35° à gauche, « 35° D » = 35° à droite. Avec « Vérifier les angles du stick », chaque direction a un angle attendu ± une tolérance. Sur une étape stick + bouton (ex. ↖ + saut), l'angle est mesuré au moment du bouton. Les angles s'affichent aussi sous les sticks de la manette (Live et overlay) et dans l'historique.
+- **Angles du stick** : 0° = haut, « 35° G » = 35° à gauche, « 35° D » = 35° à droite. Avec « Vérifier les angles du stick », chaque direction a un angle attendu ± une tolérance. Sur une étape stick + bouton (ex. ↖ + saut), l'angle est mesuré au moment du bouton. Les angles s'affichent aussi sous les sticks de la manette (Live et overlay) et dans l'historique. Pendant un test, l'angle à prendre s'affiche en vert autour du stick : la zone s'allume quand tu es dedans, et un trait montre l'angle joué au dernier essai.
 - **Frise** sous le test : le modèle en haut, ton essai en bas sur la même échelle de temps, avec les fenêtres de délai en jaune.
 - **Catégories** et **notes** par séquence, pour ranger tes séquences par jeu.
 - **Début d'un essai** :
