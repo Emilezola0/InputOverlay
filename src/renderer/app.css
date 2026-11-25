@@ -299,6 +299,26 @@ kbd {
 #seq-arm-row[hidden] { display: none; }
 .verdict.armed { color: #3fdc8a; font-size: 18px; }
 .training { grid-template-columns: 300px 1fr; }
+.training .rec-head { flex-wrap: wrap; }
+.training .tpl-menu { top: 92px; }
+.training .ctrl-menu { width: 440px; }
 .rec-head { gap: 8px; }
 .rec-head h2 { white-space: nowrap; }
 .rec-head-btns .btn { white-space: nowrap; padding: 5px 10px; }
+
+/* ---- Contrôles par jeu / inputs maintenus ---- */
+.ctrl-menu { width: 440px; right: auto; }
+.ctrl-menu h3 { display: flex; align-items: center; justify-content: space-between; }
+.ctrl-menu h3 .btn { font-size: 11px; padding: 2px 8px; text-transform: none; letter-spacing: 0; }
+.tpl-hint { margin: 2px 4px 6px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.ctrl-row { display: grid; grid-template-columns: 140px 1fr 16px auto; align-items: center; gap: 8px; padding: 4px; border-radius: 6px; font-size: 13px; }
+.ctrl-row:hover { background: var(--panel); }
+.ctrl-row.waiting { outline: 1px solid var(--accent); }
+.ctrl-row .btn { padding: 3px 10px; font-size: 12px; }
+.ctrl-warn { color: #f0b429; cursor: help; }
+.chip small.act { margin-left: 5px; font-weight: 500; font-size: 10px; opacity: 0.75; }
+.seq-holds { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; }
+.seq-holds .btn { padding: 3px 10px; font-size: 12px; }
+.hold-item { display: inline-flex; align-items: center; gap: 2px; }
+.holds-line { margin-bottom: 6px; }
+.hold-res { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }

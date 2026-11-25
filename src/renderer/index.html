@@ -100,9 +100,11 @@
           <h2>Séquences</h2>
           <div class="rec-head-btns">
             <button id="btn-seq-templates" class="btn">Modèles</button>
+            <button id="btn-game-controls" class="btn" title="Quel bouton pour sauter, booster…">Contrôles</button>
             <button id="btn-seq-new" class="btn">+ Nouvelle</button>
           </div>
           <div id="seq-templates" class="tpl-menu" hidden></div>
+          <div id="game-controls" class="tpl-menu ctrl-menu" hidden></div>
         </div>
         <div id="seq-list" class="rec-list"></div>
       </aside>
@@ -124,6 +126,7 @@
           </div>
           <div id="seq-capture-hint" class="capture-hint" hidden></div>
           <div id="seq-steps" class="seq-steps"></div>
+          <div id="seq-holds" class="seq-holds"></div>
           <div class="seq-options">
             <label>Tolérance de timing <span class="range"><input type="range" id="seq-tol" min="10" max="200" step="5" /><output></output></span></label>
             <label><input type="checkbox" id="seq-timing" /> Vérifier le timing</label>

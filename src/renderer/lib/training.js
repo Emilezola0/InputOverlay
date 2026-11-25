@@ -4,6 +4,7 @@
 export const keyOf = (i) => `${i.device}:${i.code}`;
 const isStickDir = (i) => i.device === 'pad' && typeof i.code === 'string' && i.code.includes(':');
 export const sequenceKeys = (seq) => new Set(seq.steps.flatMap((st) => st.inputs.map(keyOf)));
+export const holdKeys = (seq) => new Set((seq?.hold ?? []).map(keyOf));
 
 /** Quels inputs comptent : 'sequence' (seulement ceux de la séquence), 'devices' (appareils utilisés), 'all'. */
 export function inputFilterOf(seq) {
@@ -90,8 +91,11 @@ function align(ref, att) {
  * @returns {{steps, extras, score, verdict, perfect, okCount, almostCount, missCount}}
  *  steps[i] = { status: 'ok'|'almost'|'miss'|'pending', err, missing[], extra[], reason }
  */
-export function evaluate(sequence, presses, { partial = false } = {}) {
+export function evaluate(sequence, presses, { partial = false, holds = [] } = {}) {
   const ref = sequence.steps;
+  // les inputs à maintenir sont jugés à part (holds), pas comme des appuis
+  const hk = holdKeys(sequence);
+  if (hk.size) presses = presses.filter((p) => !hk.has(keyOf(p)));
   // directions de stick traversées en balayant (ex. ↖ → ← → ↙ → ↓) : on ignore celles absentes du modèle
   if (sequence.stickSweep !== false) {
     const keys = sequenceKeys(sequence);
@@ -160,13 +164,15 @@ export function evaluate(sequence, presses, { partial = false } = {}) {
   const almostCount = steps.filter((s) => s.status === 'almost').length;
   const missCount = steps.filter((s) => s.status === 'miss').length;
   const score = ref.length ? (okCount + 0.5 * almostCount) / ref.length : 0;
-  const perfect = okCount === ref.length && extras.length === 0;
+  const holdsOk = holds.every((h) => h.ok);
+  const perfect = okCount === ref.length && extras.length === 0 && holdsOk;
   let verdict;
   if (perfect) verdict = 'parfait';
-  else if (okCount === ref.length) verdict = 'reussi';
+  else if (okCount === ref.length && holdsOk) verdict = 'reussi';
+  else if (okCount === ref.length) verdict = 'presque';
   else if (score >= 0.6) verdict = 'presque';
   else verdict = 'rate';
-  return { steps, extras, score, verdict, perfect, okCount, almostCount, missCount, lastMatchedRef };
+  return { steps, extras, holds, score, verdict, perfect, okCount, almostCount, missCount, lastMatchedRef };
 }
 
 export const VERDICT_LABEL = {
@@ -207,6 +213,7 @@ export function summarize(sequence, attempts) {
       return k;
     })(),
     perStep,
+    holdFails: attempts.filter((a) => a.holds?.some((h) => !h.ok)).length,
     weakest: weakest && n && weakest.rate < 1 ? weakest.i : null,
   };
 }
@@ -229,6 +236,8 @@ export class AttemptTracker {
     this.timer = null;
     this.armed = false;
     this.armTimer = null;
+    this.down = new Set(); // inputs actuellement appuyés (pour les inputs à maintenir)
+    this.holds = [];
   }
 
   setSequence(seq) {
@@ -236,6 +245,7 @@ export class AttemptTracker {
     this.sequence = seq;
     this.keys = seq ? sequenceKeys(seq) : new Set();
     this.firstKeys = seq?.steps[0] ? new Set(seq.steps[0].inputs.map(keyOf)) : new Set();
+    this.holdKeys = holdKeys(seq);
   }
 
   cancel() {
@@ -281,9 +291,22 @@ export class AttemptTracker {
     return this.sequence.steps.some((st) => st.inputs.some((i) => i.device === ev.device));
   }
 
-  onEvent(ev) {
-    if (!this.sequence?.steps.length || ev.type === 'up') return;
+  /** Suit ce qui est appuyé (à appeler pour tous les inputs, même quand le test est arrêté). */
+  noteState(ev) {
     const key = `${ev.device}:${ev.code}`;
+    if (ev.type === 'down') this.down.add(key);
+    else if (ev.type === 'up') {
+      this.down.delete(key);
+      // input à maintenir relâché pendant l'essai
+      if (this.running) for (const h of this.holds) if (h.key === key && h.ok) Object.assign(h, { ok: false, reason: 'relâché' });
+    }
+  }
+
+  onEvent(ev) {
+    this.noteState(ev);
+    const key = `${ev.device}:${ev.code}`;
+    if (!this.sequence?.steps.length || ev.type === 'up') return;
+    if (this.holdKeys.has(key)) return; // un input à maintenir ne démarre rien et ne compte pas comme appui
     const arm = this.sequence.armKey;
     // touche de départ : arme le prochain essai, n'est jamais comptée comme input
     if (this.trigger === 'key' && arm && key === keyOf(arm)) {
@@ -296,10 +319,14 @@ export class AttemptTracker {
       if (this.trigger !== 'auto' && !this.firstKeys.has(key)) return;
       this.setArmed(false);
       this.startT = ev.t;
+      this.holds = (this.sequence.hold ?? []).map((i) => {
+        const ok = this.down.has(keyOf(i));
+        return { input: { device: i.device, code: i.code }, key: keyOf(i), ok, reason: ok ? '' : 'pas maintenu' };
+      });
     }
     this.presses.push({ device: ev.device, code: ev.code, t: ev.t });
     clearTimeout(this.timer);
-    const partial = evaluate(this.sequence, this.presses, { partial: true });
+    const partial = evaluate(this.sequence, this.presses, { partial: true, holds: this.publicHolds() });
     this.onProgress?.(partial);
     // fin anticipée : dernière étape reconnue → on attend juste la fenêtre d'accord
     // (si la dernière étape est incomplète, on laisse le temps à un input en retard d'arriver)
@@ -314,10 +341,14 @@ export class AttemptTracker {
     this.timer = setTimeout(() => this.finish(), wait);
   }
 
+  publicHolds() {
+    return this.holds.map(({ input, ok, reason }) => ({ input, ok, reason }));
+  }
+
   finish() {
     clearTimeout(this.timer);
     if (!this.presses.length) return;
-    const result = evaluate(this.sequence, this.presses);
+    const result = evaluate(this.sequence, this.presses, { holds: this.publicHolds() });
     result.presses = this.presses;
     result.at = Date.now();
     this.presses = [];

@@ -55,6 +55,8 @@ Publier une version (après `gh auth login`) :
   - **Raté** : étape non jouée ou timing trop loin.
 - **Récap** : nombre d'essais, % réussis, parfaits, série en cours, point faible, réussite et timing moyen par étape.
 - **Modèles intégrés** (bouton **Modèles**) : Rocket League (speedflip gauche/droite, half-flip, fast aerial, wavedash) et jeux de combat (quart de cercle, dragon punch, demi-cercle, dash). Le timing n'y est pas vérifié par défaut : réenregistre le modèle en le jouant toi-même pour l'activer.
+- **Contrôles** (bouton **Contrôles**) : choisis le bouton de chaque action (Sauter, Boost, Air roll…). Les modèles les utilisent, et les séquences déjà créées depuis un modèle sont mises à jour quand tu les changes. Un ⚠ signale deux actions sur le même bouton.
+- **À maintenir pendant tout l'essai** : des inputs à garder appuyés (ex. Accélérer + Boost pour le speedflip). Les relâcher ou ne pas les tenir donne « Presque ».
 - **Catégories** et **notes** par séquence, pour ranger tes séquences par jeu.
 - **Début d'un essai** :
   - *Au premier input de la séquence* (par défaut) : tout ce que tu fais avant est ignoré. Idéal en entraînement libre.

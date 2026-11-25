@@ -1,7 +1,7 @@
 // Onglet « Entraînement » : éditeur de séquence modèle, test en direct, résultat et récap.
-import { buildSteps, evaluate, summarize, AttemptTracker, VERDICT_LABEL, keyOf, inputFilterOf } from './lib/training.js';
-import { TEMPLATES, fromTemplate } from './lib/templates.js';
-import { inputLabel, formatDuration, formatAccel } from './lib/labels.js';
+import { buildSteps, evaluate, summarize, AttemptTracker, VERDICT_LABEL, keyOf, inputFilterOf, holdKeys } from './lib/training.js';
+import { TEMPLATES, GAMES, fromTemplate, controlsFor, applyControls, actionLabel } from './lib/templates.js';
+import { inputLabel, formatDuration, formatAccel, K } from './lib/labels.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -16,12 +16,21 @@ export function initTraining(api, getSettings) {
   let phase = 'ready'; // ready | running | result
   let live = null; // évaluation partielle pendant l'essai
   let last = null; // dernier résultat
-  let capture = null; // { mode: 'model'|'step'|'arm', presses: [], timer }
+  let capture = null; // { mode: 'model'|'step'|'arm'|'hold'|'bind', presses: [], timer, target }
+  let lastUiDown = 0; // dernier clic sur un bouton de l'appli (pour ne pas l'assigner comme contrôle)
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target.closest?.('button, select, input, label')) lastUiDown = performance.now();
+  }, true);
   let armed = false; // touche de départ appuyée, en attente de l'essai
 
   const attempts = () => attemptsBySeq.get(seq?.id) ?? [];
-  const chips = (inputs) =>
-    inputs.map((i) => `<span class="chip dev-${i.device}">${esc(inputLabel(i, settings))}</span>`).join('<span class="plus">+</span>');
+  const chips = (inputs, game = seq?.game) =>
+    inputs
+      .map((i) => {
+        const al = i.action ? actionLabel(game, i.action) : '';
+        return `<span class="chip dev-${i.device}"${al ? ` title="${esc(al)}"` : ''}>${esc(inputLabel(i, settings))}${al ? `<small class="act">${esc(al)}</small>` : ''}</span>`;
+      })
+      .join('<span class="plus">+</span>');
   const unit = () => settings.timeUnit;
 
   const tracker = new AttemptTracker({
@@ -106,13 +115,20 @@ export function initTraining(api, getSettings) {
 
   // Modèles intégrés
   function renderTemplates() {
-    const cats = [...new Set(TEMPLATES.map((t) => t.category))];
-    $('seq-templates').innerHTML = cats
-      .map(
-        (cat) => `<h3>${esc(cat)}</h3>` +
-          TEMPLATES.map((t, i) => (t.category !== cat ? '' : `<button class="tpl-item" data-tpl="${i}">${esc(t.name)}<small>${t.steps.map((st) => st.inputs.map((x) => esc(inputLabel(x, settings))).join('+')).join('  ')}</small></button>`)).join('')
-      )
-      .join('');
+    const cats = [...new Set(TEMPLATES.map((t) => t.game))];
+    const preview = (t) => {
+      const s = fromTemplate(t, settings);
+      const steps = s.steps.map((st) => st.inputs.map((x) => esc(inputLabel(x, settings))).join('+')).join('  ');
+      return s.hold.length ? `${steps}  (en maintenant ${s.hold.map((x) => esc(inputLabel(x, settings))).join('+')})` : steps;
+    };
+    $('seq-templates').innerHTML =
+      '<p class="tpl-hint">Les modèles utilisent tes contrôles (bouton <b>Contrôles</b>).</p>' +
+      cats
+        .map(
+          (cat) => `<h3>${esc(cat)}</h3>` +
+            TEMPLATES.map((t, i) => (t.game !== cat ? '' : `<button class="tpl-item" data-tpl="${i}">${esc(t.name)}<small>${preview(t)}</small></button>`)).join('')
+        )
+        .join('');
   }
   $('btn-seq-templates').addEventListener('click', (ev) => {
     ev.stopPropagation();
@@ -121,14 +137,82 @@ export function initTraining(api, getSettings) {
   });
   document.addEventListener('click', (ev) => {
     if (!ev.target.closest('#seq-templates')) $('seq-templates').hidden = true;
+    if (!ev.target.closest('#game-controls') && !$('game-controls').hidden) {
+      $('game-controls').hidden = true;
+      if (capture?.mode === 'bind') stopCapture(false);
+    }
   });
   $('seq-templates').addEventListener('click', async (ev) => {
     const b = ev.target.closest('.tpl-item');
     if (!b) return;
     $('seq-templates').hidden = true;
-    const created = await api.saveSequence(fromTemplate(TEMPLATES[Number(b.dataset.tpl)]));
+    const created = await api.saveSequence(fromTemplate(TEMPLATES[Number(b.dataset.tpl)], settings));
     await refreshList(created.id);
   });
+
+  // Mes contrôles : quel bouton correspond à quelle action, par jeu
+  function renderControls() {
+    $('game-controls').innerHTML = Object.entries(GAMES)
+      .map(([game, def]) => {
+        const ctrl = controlsFor(settings, game);
+        const rows = Object.entries(def.actions)
+          .map(([action, a]) => {
+            const b = ctrl[action];
+            const same = Object.entries(ctrl).filter(([k, x]) => k !== action && keyOf(x) === keyOf(b)).map(([k]) => def.actions[k].label);
+            const waiting = capture?.mode === 'bind' && capture.target.game === game && capture.target.action === action;
+            return `<div class="ctrl-row${waiting ? ' waiting' : ''}">
+              <span class="ctrl-name">${esc(a.label)}</span>
+              <span class="chips">${waiting ? '<span class="muted">appuie sur le bouton… (Échap : annuler)</span>' : chips([b], '')}</span>
+              <span class="ctrl-warn" title="${same.length && !waiting ? `Même bouton que ${esc(same.join(', '))}` : ''}">${same.length && !waiting ? '⚠' : ''}</span>
+              <button class="btn ctrl-bind" data-game="${esc(game)}" data-action="${esc(action)}">${waiting ? 'Annuler' : 'Changer'}</button>
+            </div>`;
+          })
+          .join('');
+        return `<h3>${esc(game)}<button class="btn ctrl-reset" data-game="${esc(game)}">Par défaut</button></h3><p class="tpl-hint">${esc(def.note)}</p>${rows}`;
+      })
+      .join('');
+  }
+  $('btn-game-controls').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    $('seq-templates').hidden = true;
+    const open = $('game-controls').hidden;
+    if (!open && capture?.mode === 'bind') stopCapture(false);
+    $('game-controls').hidden = !open;
+    if (open) renderControls();
+  });
+  $('game-controls').addEventListener('click', (ev) => {
+    ev.stopPropagation(); // le panneau est redessiné : le clic ne doit pas le fermer
+    const bind = ev.target.closest('.ctrl-bind');
+    const reset = ev.target.closest('.ctrl-reset');
+    if (bind) {
+      const t = bind.dataset;
+      if (capture?.mode === 'bind' && capture.target.game === t.game && capture.target.action === t.action) stopCapture(false);
+      else startCapture('bind', { game: t.game, action: t.action });
+    } else if (reset) {
+      setGameControls(reset.dataset.game, null);
+    }
+  });
+
+  /** Enregistre les contrôles d'un jeu et met à jour les séquences créées depuis ses modèles. */
+  async function setGameControls(game, patch) {
+    const cur = { ...(settings.gameControls?.[game] ?? {}) };
+    const next = patch === null ? {} : { ...cur, ...patch };
+    settings = { ...settings, gameControls: { ...(settings.gameControls ?? {}), [game]: next } };
+    // remplace tout le jeu (sinon les anciens choix seraient fusionnés)
+    api.setSettings({ gameControls: { [game]: null } });
+    api.setSettings({ gameControls: { [game]: next } });
+    let n = 0;
+    for (const s of sequences) {
+      if (s.game !== game) continue;
+      if (applyControls(s, settings)) {
+        await api.saveSequence(s);
+        n++;
+      }
+    }
+    if (n) await refreshList(seq?.id);
+    renderControls();
+    renderTemplates();
+  }
 
   $('seq-list').addEventListener('click', (ev) => {
     const b = ev.target.closest('.rec-item');
@@ -158,6 +242,7 @@ export function initTraining(api, getSettings) {
     $('seq-filter').value = inputFilterOf(seq);
     $('seq-category').value = seq.category ?? '';
     $('seq-note').value = seq.note ?? '';
+    seq.hold = seq.hold ?? [];
     renderAll();
   }
 
@@ -256,11 +341,23 @@ export function initTraining(api, getSettings) {
     changed({ resetAttempts: true });
   });
 
+  // Inputs à maintenir pendant tout l'essai
+  $('seq-holds').addEventListener('click', (ev) => {
+    const del = ev.target.closest('.hold-del');
+    if (del) {
+      seq.hold.splice(Number(del.dataset.i), 1);
+      changed({ resetAttempts: true });
+    } else if (ev.target.closest('#btn-hold-add')) {
+      if (capture?.mode === 'hold') stopCapture(false);
+      else startCapture('hold');
+    }
+  });
+
   // ---------------------------------------------------------------- Capture du modèle
-  function startCapture(mode) {
+  function startCapture(mode, target = null) {
     stopCapture(false);
     tracker.cancel();
-    capture = { mode, presses: [], timer: null };
+    capture = { mode, presses: [], timer: null, target };
     renderCapture();
   }
 
@@ -274,12 +371,28 @@ export function initTraining(api, getSettings) {
     let presses = c.presses;
     // retire le clic qui a servi à arrêter la capture
     if (source === 'button') while (presses.length && keyOf(presses.at(-1)) === 'mouse:1') presses = presses.slice(0, -1);
+    if (c.mode === 'bind') {
+      renderControls();
+      const p = presses[0];
+      if (p) setGameControls(c.target.game, { [c.target.action]: { device: p.device, code: p.code } });
+      return;
+    }
     if (!presses.length) return;
+    if (c.mode === 'hold') {
+      const p = { device: presses[0].device, code: presses[0].code };
+      if (!seq.hold.some((h) => keyOf(h) === keyOf(p))) seq.hold.push(p);
+      changed({ resetAttempts: true });
+      return;
+    }
     if (c.mode === 'arm') {
       seq.armKey = { device: presses[0].device, code: presses[0].code };
       changed();
       return;
     }
+    // les inputs à maintenir (accélérer, boost…) ne deviennent pas des étapes
+    const hk = holdKeys(seq);
+    presses = presses.filter((p) => !hk.has(keyOf(p)));
+    if (!presses.length) return;
     const steps = buildSteps(presses, seq.chordWindow);
     if (c.mode === 'model') seq.steps = steps;
     else {
@@ -304,14 +417,18 @@ export function initTraining(api, getSettings) {
     $('btn-seq-capture').classList.toggle('recording', capture?.mode === 'model');
     $('btn-seq-add').textContent = capture?.mode === 'step' ? 'Annuler' : '+ Étape';
     $('btn-seq-arm').textContent = capture?.mode === 'arm' ? 'Annuler' : 'Choisir';
-    hint.hidden = !capture;
+    if ($('btn-hold-add')) $('btn-hold-add').textContent = capture?.mode === 'hold' ? 'Annuler' : '+ Ajouter';
+    hint.hidden = !capture || capture.mode === 'bind';
+    if (!$('game-controls').hidden) renderControls();
     if (!capture) return;
     hint.innerHTML =
       capture.mode === 'model'
         ? `Joue ta séquence modèle… (${capture.presses.length} input${capture.presses.length > 1 ? 's' : ''}) — arrêt auto après 1,5 s sans input, ou clique sur Terminer.`
         : capture.mode === 'arm'
           ? 'Appuie sur la touche de départ (un bouton que tu n\'utilises pas dans la séquence, ex. View / Share ou une touche du clavier)…'
-          : 'Appuie sur le ou les inputs de la nouvelle étape…';
+          : capture.mode === 'hold'
+            ? 'Appuie sur l\'input à maintenir pendant tout l\'essai (ex. accélérer, boost)…'
+            : 'Appuie sur le ou les inputs de la nouvelle étape…';
   }
 
   // ---------------------------------------------------------------- Test
@@ -336,17 +453,35 @@ export function initTraining(api, getSettings) {
   });
 
   function onEvent(ev) {
+    if (capture) tracker.noteState(ev);
     if (capture) {
       if (ev.type === 'up') return;
+      if (capture.mode === 'bind') {
+        if (ev.device === 'kb' && ev.code === K.Escape) return stopCapture(false);
+        if (ev.device === 'mouse') {
+          // un clic sur un bouton de l'appli (ex. « Annuler ») n'est pas un contrôle
+          const c = capture;
+          setTimeout(() => {
+            if (capture === c && performance.now() - lastUiDown > 250) {
+              c.presses.push({ device: ev.device, code: ev.code, t: ev.t });
+              stopCapture(true);
+            }
+          }, 120);
+          return;
+        }
+        capture.presses.push({ device: ev.device, code: ev.code, t: ev.t });
+        return stopCapture(true);
+      }
       capture.presses.push({ device: ev.device, code: ev.code, t: ev.t });
       clearTimeout(capture.timer);
-      if (capture.mode === 'arm') return stopCapture(true);
+      if (capture.mode === 'arm' || capture.mode === 'hold') return stopCapture(true);
       if (capture.mode === 'step') capture.timer = setTimeout(() => stopCapture(true), seq.chordWindow + 20);
       else capture.timer = setTimeout(() => stopCapture(true), 1500);
       renderCapture();
       return;
     }
     if (active) tracker.onEvent(ev);
+    else tracker.noteState(ev);
   }
 
   // ---------------------------------------------------------------- Rendu
@@ -360,6 +495,9 @@ export function initTraining(api, getSettings) {
     $('seq-tol').parentElement.querySelector('output').textContent = formatDuration(seq.tolerance, unit());
     $('seq-arm-row').hidden = seq.trigger !== 'key';
     $('seq-arm-key').innerHTML = seq.armKey ? chips([seq.armKey]) : '<span class="muted">aucune</span>';
+    $('seq-holds').innerHTML = `<span class="muted">À maintenir pendant tout l'essai :</span>
+      ${seq.hold.length ? seq.hold.map((h, i) => `<span class="hold-item">${chips([h])}<button class="step-del hold-del" data-i="${i}" title="Retirer">×</button></span>`).join('') : '<span class="muted">rien</span>'}
+      <button id="btn-hold-add" class="btn">${capture?.mode === 'hold' ? 'Annuler' : '+ Ajouter'}</button>`;
     if (!seq.steps.length) {
       $('seq-steps').innerHTML = '<div class="rec-none">Séquence vide : clique sur <b>● Enregistrer le modèle</b> et joue la séquence attendue.</div>';
       return;
@@ -425,9 +563,14 @@ export function initTraining(api, getSettings) {
       .join('');
 
     const extras = view?.extras ?? [];
-    $('train-extras').innerHTML = extras.length
-      ? `<span class="muted">En trop :</span> ${extras.map((e) => `<span class="extra">${chips(e.inputs)}</span>`).join(' ')}`
-      : '';
+    const holds = view?.holds ?? [];
+    $('train-extras').innerHTML =
+      (holds.length
+        ? `<div class="holds-line"><span class="muted">Maintenu :</span> ${holds
+            .map((h) => `<span class="hold-res ${h.ok ? 'c-ok' : 'c-miss'}">${chips([h.input])} ${h.ok ? '✓' : `✗ ${esc(h.reason)}`}</span>`)
+            .join(' ')}</div>`
+        : '') +
+      (extras.length ? `<span class="muted">En trop :</span> ${extras.map((e) => `<span class="extra">${chips(e.inputs)}</span>`).join(' ')}` : '');
     publish();
   }
 
@@ -443,7 +586,7 @@ export function initTraining(api, getSettings) {
     const avgErr = (e) => (e === null || !seq.timing ? '—' : Math.abs(e) < 3 ? 'pile' : `${e > 0 ? '+' : '−'}${formatDuration(Math.abs(e), unit())} ${e > 0 ? 'tard' : 'tôt'}`);
     const weak = r.weakest !== null
       ? `<div class="weak">Point faible : <b>étape ${r.weakest + 1}</b> ${chips(seq.steps[r.weakest].inputs)}${r.perStep[r.weakest].topReason ? ` (souvent ${esc(r.perStep[r.weakest].topReason)})` : ''}</div>`
-      : '<div class="weak good">Toutes les étapes sont maîtrisées 👌</div>';
+      : r.holdFails ? '' : '<div class="weak good">Toutes les étapes sont maîtrisées 👌</div>';
     $('train-recap').innerHTML = `
       <div class="stat-grid four">
         <div class="stat"><b>${r.attempts}</b><span>essais</span></div>
@@ -452,6 +595,7 @@ export function initTraining(api, getSettings) {
         <div class="stat"><b>${r.streak}</b><span>série actuelle</span></div>
       </div>
       ${weak}
+      ${seq.hold.length && r.holdFails ? `<div class="weak">Maintien raté sur <b>${r.holdFails}</b> essai${r.holdFails > 1 ? 's' : ''} : ${chips(seq.hold)} pas gardé appuyé</div>` : ''}
       <table class="stat-top recap-table">
         <tr><th>Étape</th><th>Réussi</th><th>Presque</th><th>Raté</th><th>Timing moyen</th></tr>
         ${seq.steps
@@ -486,11 +630,20 @@ export function initTraining(api, getSettings) {
       active: active && !!seq,
       name: seq?.name ?? '',
       phase,
-      steps: (seq?.steps ?? []).map((st, i) => ({
-        label: st.inputs.map((x) => inputLabel(x, settings)).join('+'),
-        status: view?.steps[i]?.status ?? 'pending',
-        detail: view?.steps[i] && view.steps[i].status !== 'pending' ? stepDetail(view.steps[i], i) : '',
-      })),
+      steps: [
+        ...(seq?.hold?.length
+          ? [{
+              label: `Maintenir ${seq.hold.map((x) => inputLabel(x, settings)).join('+')}`,
+              status: view?.holds?.length ? (view.holds.every((h) => h.ok) ? 'ok' : 'miss') : 'pending',
+              detail: view?.holds?.filter((h) => !h.ok).map((h) => `${inputLabel(h.input, settings)} ${h.reason}`).join(' · ') ?? '',
+            }]
+          : []),
+        ...(seq?.steps ?? []).map((st, i) => ({
+          label: st.inputs.map((x) => inputLabel(x, settings)).join('+'),
+          status: view?.steps[i]?.status ?? 'pending',
+          detail: view?.steps[i] && view.steps[i].status !== 'pending' ? stepDetail(view.steps[i], i) : '',
+        })),
+      ],
       verdict: phase === 'result' ? last?.verdict : null,
       verdictLabel: armed && phase !== 'running' ? 'Armé : vas-y !' : phase === 'result' && last ? VERDICT_LABEL[last.verdict] : phase === 'running' ? 'En cours…' : 'Prêt',
       armed,
@@ -507,6 +660,7 @@ export function initTraining(api, getSettings) {
     onEvent,
     setSettings(s) {
       settings = s;
+      if (!$('game-controls').hidden) renderControls();
       renderList();
       if (seq) renderAll();
     },
