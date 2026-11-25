@@ -1,5 +1,5 @@
 // Process principal : capture globale clavier/souris (uiohook), fenêtres, réglages.
-const { app, BrowserWindow, ipcMain, globalShortcut, screen, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, screen, shell, dialog, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { uIOhook } = require('uiohook-napi');
@@ -14,15 +14,22 @@ const DEFAULT_SETTINGS = {
     visible: true,
     locked: false,
     keyboard: 'gaming', // 'off' | 'gaming' | 'full'
-    mouse: true,
-    gamepad: true,
+    mouse: false,
+    gamepad: false,
     history: true,
     training: true, // widget d'entraînement (visible seulement quand un test est actif)
-    direction: 'vertical', // 'vertical' | 'horizontal'
+    direction: 'horizontal', // 'vertical' | 'horizontal'
     scale: 1,
     opacity: 0.92,
-    historyRows: 8,
+    historyRows: 6,
     position: null, // {x, y}
+  },
+  shortcuts: {
+    overlayToggle: 'CommandOrControl+Shift+O',
+    overlayLock: 'CommandOrControl+Shift+L',
+    record: 'CommandOrControl+Shift+R',
+    training: 'CommandOrControl+Shift+T',
+    clearHistory: 'CommandOrControl+Shift+Backspace',
   },
 };
 
@@ -66,6 +73,7 @@ function updateSettings(patch) {
   deepMerge(settings, patch);
   saveSettingsSoon();
   applyOverlaySettings();
+  if (patch && patch.shortcuts) registerShortcuts();
   broadcast('settings', settings);
 }
 
@@ -311,18 +319,130 @@ ipcMain.on('training:state', (_e, state) => {
 });
 ipcMain.handle('training:getState', () => trainingState);
 
-// ---------- Raccourcis globaux ----------
+// ---------- Raccourcis globaux (configurables) ----------
+const SHORTCUT_ACTIONS = {
+  overlayToggle: () => updateSettings({ overlay: { visible: !settings.overlay.visible } }),
+  overlayLock: () => updateSettings({ overlay: { locked: !settings.overlay.locked } }),
+  record: () => mainWin?.webContents.send('record:toggle'),
+  training: () => mainWin?.webContents.send('training:toggle'),
+  clearHistory: () => broadcast('history:clear'),
+};
+let shortcutStatus = {}; // nom -> 'ok' | 'conflict' | 'invalid' | 'none'
+let shortcutsSuspended = false;
+
 function registerShortcuts() {
-  globalShortcut.register('CommandOrControl+Shift+R', () => mainWin?.webContents.send('record:toggle'));
-  globalShortcut.register('CommandOrControl+Shift+T', () => mainWin?.webContents.send('training:toggle'));
-  globalShortcut.register('CommandOrControl+Shift+O', () =>
-    updateSettings({ overlay: { visible: !settings.overlay.visible } })
-  );
-  globalShortcut.register('CommandOrControl+Shift+L', () =>
-    updateSettings({ overlay: { locked: !settings.overlay.locked } })
-  );
-  globalShortcut.register('CommandOrControl+Shift+Backspace', () => broadcast('history:clear'));
+  globalShortcut.unregisterAll();
+  shortcutStatus = {};
+  for (const [name, action] of Object.entries(SHORTCUT_ACTIONS)) {
+    const acc = settings.shortcuts?.[name];
+    if (!acc) {
+      shortcutStatus[name] = 'none';
+      continue;
+    }
+    if (shortcutsSuspended) continue;
+    try {
+      shortcutStatus[name] = globalShortcut.register(acc, action) ? 'ok' : 'conflict';
+    } catch {
+      shortcutStatus[name] = 'invalid';
+    }
+  }
+  broadcast('shortcuts:status', shortcutStatus);
 }
+ipcMain.handle('shortcuts:status', () => shortcutStatus);
+// pendant la saisie d'un nouveau raccourci, on désactive les raccourcis globaux
+ipcMain.on('shortcuts:suspend', (_e, on) => {
+  shortcutsSuspended = !!on;
+  if (on) globalShortcut.unregisterAll();
+  else registerShortcuts();
+});
+
+// ---------- Essais d'entraînement sauvegardés ----------
+const attemptsFile = (id) => path.join(app.getPath('userData'), 'attempts', `${String(id).replace(/[^\w-]/g, '')}.json`);
+ipcMain.handle('attempts:load', (_e, id) => {
+  try {
+    const list = JSON.parse(fs.readFileSync(attemptsFile(id), 'utf8'));
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+});
+ipcMain.handle('attempts:save', (_e, id, list) => {
+  fs.mkdirSync(path.dirname(attemptsFile(id)), { recursive: true });
+  fs.writeFileSync(attemptsFile(id), JSON.stringify(list.slice(-300)));
+  return true;
+});
+ipcMain.handle('attempts:delete', (_e, id) => {
+  fs.rmSync(attemptsFile(id), { force: true });
+  return true;
+});
+
+// ---------- Mises à jour automatiques ----------
+const REPO = { owner: 'Emilezola0', repo: 'InputOverlay' };
+const RELEASES_URL = `https://github.com/${REPO.owner}/${REPO.repo}/releases/latest`;
+const isPortable = () => !!process.env.PORTABLE_EXECUTABLE_DIR;
+let updateState = { state: 'idle', version: app.getVersion() };
+
+function setUpdateState(patch) {
+  updateState = { ...updateState, ...patch };
+  broadcast('update:state', updateState);
+}
+
+const newer = (a, b) => {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+  return false;
+};
+
+let autoUpdater = null;
+async function checkForUpdates() {
+  if (!app.isPackaged) {
+    setUpdateState({ state: 'dev' });
+    return;
+  }
+  setUpdateState({ state: 'checking' });
+  if (isPortable()) {
+    // la version portable ne peut pas se remplacer elle-même : on signale juste la nouvelle version
+    try {
+      const res = await net.fetch(`https://api.github.com/repos/${REPO.owner}/${REPO.repo}/releases/latest`, {
+        headers: { 'User-Agent': 'InputMemory-updater', Accept: 'application/vnd.github+json' },
+      });
+      const rel = await res.json();
+      const latest = String(rel.tag_name || '').replace(/^v/, '');
+      if (latest && newer(latest, app.getVersion())) setUpdateState({ state: 'available-portable', latest });
+      else setUpdateState({ state: 'uptodate' });
+    } catch (e) {
+      setUpdateState({ state: 'error', error: String(e.message || e) });
+    }
+    return;
+  }
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (e) {
+    setUpdateState({ state: 'error', error: String(e.message || e) });
+  }
+}
+
+function setupUpdates() {
+  if (app.isPackaged && !isPortable()) {
+    autoUpdater = require('electron-updater').autoUpdater;
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.on('update-available', (info) => setUpdateState({ state: 'downloading', latest: info.version, percent: 0 }));
+    autoUpdater.on('update-not-available', () => setUpdateState({ state: 'uptodate' }));
+    autoUpdater.on('download-progress', (p) => setUpdateState({ state: 'downloading', percent: Math.round(p.percent) }));
+    autoUpdater.on('update-downloaded', (info) => setUpdateState({ state: 'ready', latest: info.version }));
+    autoUpdater.on('error', (e) => setUpdateState({ state: 'error', error: String(e.message || e) }));
+  }
+  if (!app.isPackaged) return setUpdateState({ state: 'dev' });
+  setTimeout(checkForUpdates, 5000);
+  setInterval(checkForUpdates, 4 * 60 * 60 * 1000);
+}
+ipcMain.handle('update:get', () => updateState);
+ipcMain.handle('app:version', () => app.getVersion());
+ipcMain.on('update:check', () => checkForUpdates());
+ipcMain.on('update:install', () => autoUpdater?.quitAndInstall());
+ipcMain.on('update:open', () => shell.openExternal(RELEASES_URL));
 
 // ---------- Debug : capture des fenêtres puis fermeture (IM_SNAPSHOT=dossier) ----------
 function debugSnapshot(dir) {
@@ -338,7 +458,30 @@ function debugSnapshot(dir) {
     fake(ms, 'down', device, code);
     fake(ms + hold, 'up', device, code);
   };
-  if (process.env.IM_FAKE === 'training') {
+  if (process.env.IM_FAKE === 'reopen') {
+    // Rouvre l'onglet Entraînement pour vérifier que les essais sauvegardés sont rechargés
+    js(800, `document.querySelector('.tab[data-view="training"]').click();`);
+    delay = 2000;
+  } else if (process.env.IM_FAKE === 'settings') {
+    // Onglet réglages : préréglage "Manette", puis saisie d'un raccourci via un keydown DOM factice
+    setTimeout(() => console.log('[settings-initial]', JSON.stringify(shortcutStatus)), 600);
+    js(800, `document.querySelector('.tab[data-view="settings"]').click(); document.querySelector('[data-preset="pad"]').click();`);
+    js(1200, `document.querySelector('.sc-btn[data-sc="record"]').click();`);
+    js(1500, `window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyK', key: 'K', ctrlKey: true, altKey: true, bubbles: true }));`);
+    setTimeout(() => console.log('[settings-test]', JSON.stringify({ shortcuts: settings.shortcuts, status: shortcutStatus, overlay: settings.overlay })), 2000);
+    delay = 2600;
+  } else if (process.env.IM_FAKE === 'minimize') {
+    // Vérifie que la fenêtre principale reste « visible » (lecture manette) une fois réduite
+    setTimeout(() => mainWin.minimize(), 800);
+    setTimeout(async () => {
+      const r = await mainWin.webContents.executeJavaScript(
+        `({ minimized: true, visibility: document.visibilityState, hidden: document.hidden, gamepadApi: typeof navigator.getGamepads })`
+      );
+      console.log('[minimize-test]', JSON.stringify(r));
+      mainWin.restore();
+    }, 2000);
+    delay = 3000;
+  } else if (process.env.IM_FAKE === 'training') {
     // Modèle : ↓ ↘ → + A, puis deux essais (un bon, un raté) et un essai "presque"
     js(800, `document.querySelector('.tab[data-view="training"]').click(); document.getElementById('btn-seq-new').click();`);
     js(1000, `document.getElementById('btn-seq-capture').click();`);
@@ -398,7 +541,9 @@ if (!app.requestSingleInstanceLock()) {
     createOverlayWindow();
     startHook();
     registerShortcuts();
-    if (process.env.IM_SNAPSHOT) debugSnapshot(process.env.IM_SNAPSHOT);
+    setupUpdates();
+    // outils de test réservés au développement (jamais actifs dans l'exe distribué)
+    if (!app.isPackaged && process.env.IM_SNAPSHOT) debugSnapshot(process.env.IM_SNAPSHOT);
   });
 
   app.on('will-quit', () => {

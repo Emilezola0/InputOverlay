@@ -2,7 +2,7 @@
 import { analyze, ReplayState, keyOf } from './lib/replay.js';
 import { Timeline, formatClock } from './lib/timeline.js';
 import { KeyboardWidget, MouseWidget, GamepadWidget, HistoryWidget } from './lib/widgets.js';
-import { inputLabel, formatDuration } from './lib/labels.js';
+import { inputLabel, formatDuration, formatAccel } from './lib/labels.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -43,7 +43,7 @@ export function initRecordings(api, getSettings) {
   function renderList() {
     const el = $('rec-list');
     if (!list.length) {
-      el.innerHTML = '<div class="rec-none">Aucune session.<br>Clique sur <b>● Enregistrer</b> ou fais <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>R</kbd>.</div>';
+      el.innerHTML = `<div class="rec-none">Aucune session.<br>Clique sur <b>● Enregistrer</b> ou fais <kbd data-sc-text="record">${esc(formatAccel(getSettings().shortcuts?.record))}</kbd>.</div>`;
       return;
     }
     el.innerHTML = list

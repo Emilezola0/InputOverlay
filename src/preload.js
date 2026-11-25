@@ -35,5 +35,20 @@ contextBridge.exposeInMainWorld('inputMemory', {
   onTrainingState: (cb) => subscribe('training:state', cb),
   getTrainingState: () => ipcRenderer.invoke('training:getState'),
   setTrainingState: (state) => ipcRenderer.send('training:state', state),
+  // Raccourcis
+  getShortcutStatus: () => ipcRenderer.invoke('shortcuts:status'),
+  onShortcutStatus: (cb) => subscribe('shortcuts:status', cb),
+  suspendShortcuts: (on) => ipcRenderer.send('shortcuts:suspend', on),
+  // Essais d'entraînement
+  loadAttempts: (id) => ipcRenderer.invoke('attempts:load', id),
+  saveAttempts: (id, list) => ipcRenderer.invoke('attempts:save', id, list),
+  deleteAttempts: (id) => ipcRenderer.invoke('attempts:delete', id),
+  // Mises à jour
+  getUpdateState: () => ipcRenderer.invoke('update:get'),
+  onUpdateState: (cb) => subscribe('update:state', cb),
+  checkUpdates: () => ipcRenderer.send('update:check'),
+  installUpdate: () => ipcRenderer.send('update:install'),
+  openReleases: () => ipcRenderer.send('update:open'),
+  appVersion: () => ipcRenderer.invoke('app:version'),
   overlayFit: (width, height) => ipcRenderer.send('overlay:fit', { width, height }),
 });

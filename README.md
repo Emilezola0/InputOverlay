@@ -8,6 +8,8 @@ Va dans **[Releases](https://github.com/Emilezola0/InputOverlay/releases)** et p
 - `InputMemory-Setup-x.y.z.exe` : installeur (raccourci sur le bureau, désinstallable depuis Windows) ;
 - `InputMemory-Portable-x.y.z.exe` : version portable, rien à installer, il suffit de la lancer.
 
+**Mises à jour** : la version installée (Setup) se met à jour toute seule. Quand une nouvelle version est téléchargée, un bouton **Redémarrer** apparaît en haut de la fenêtre. La version portable signale seulement qu'une nouvelle version existe et propose de la télécharger.
+
 L'appli n'est pas signée : au premier lancement, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Clique sur **Informations complémentaires**, puis sur **Exécuter quand même**.
 
 ## Développer
@@ -24,6 +26,11 @@ npm run dist
 ```
 
 L'icône est générée par `npm run icon` (`scripts/make-icon.js` → `build/icon.png`).
+
+Publier une version (après `gh auth login`) :
+1. changer `"version"` dans `package.json` ;
+2. `npm run dist` ;
+3. `npm run release -- notes.md` (notes facultatives) : crée la Release GitHub avec l'installeur, la version portable et `latest.yml`, utilisé par la mise à jour automatique.
 
 ## V1
 - **Live** : clavier complet (AZERTY/QWERTY), souris, manette (Xbox/PS), touches allumées en temps réel.
@@ -50,6 +57,8 @@ L'icône est générée par `npm run icon` (`scripts/make-icon.js` → `build/ic
 - Le widget **Entraînement** de l'overlay montre le verdict et les étapes ratées pendant que tu joues.
 
 ## Raccourcis globaux
+Modifiables dans **Overlay & réglages → Raccourcis globaux**. Un raccourci déjà pris par un autre logiciel s'affiche en rouge. Par défaut :
+
 | Raccourci | Action |
 |---|---|
 | Ctrl+Maj+O | Afficher / masquer l'overlay |
@@ -61,4 +70,6 @@ L'icône est générée par `npm run icon` (`scripts/make-icon.js` → `build/ic
 ## Notes
 - L'overlay passe par-dessus les jeux en fenêtré ou plein écran sans bordure, pas en plein écran exclusif.
 - La manette apparaît après un premier appui sur un bouton (règle de l'API Gamepad).
-- Debug : `IM_SNAPSHOT=<dossier>` capture les deux fenêtres puis ferme l'app ; avec `IM_FAKE=1` (enregistrement) ou `IM_FAKE=training` (entraînement), des événements factices sont injectés dans l'app (aucune vraie touche n'est envoyée au système).
+- Overlay : des préréglages (Manette, Clavier + souris, Historique seul, Tout) ; l'overlay est réduit automatiquement s'il dépasse l'écran.
+- Les essais d'entraînement sont sauvegardés : le récap est conservé d'une session à l'autre.
+- Debug (développement uniquement, inactif dans l'exe) : `IM_SNAPSHOT=<dossier>` capture les deux fenêtres puis ferme l'app ; avec `IM_FAKE=1` (enregistrement) ou `IM_FAKE=training` (entraînement), des événements factices sont injectés dans l'app (aucune vraie touche n'est envoyée au système).

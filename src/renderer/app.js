@@ -5,6 +5,7 @@ import { Recorder } from './lib/recorder.js';
 import { formatClock } from './lib/timeline.js';
 import { initRecordings } from './recordings.js';
 import { initTraining } from './trainingView.js';
+import { formatAccel, accelFromEvent } from './lib/labels.js';
 
 const api = window.inputMemory;
 let settings = await api.getSettings();
@@ -93,8 +94,110 @@ for (const c of controls) {
 }
 fillControls();
 
+// ---- Préréglages de l'overlay
+const PRESETS = {
+  pad: { keyboard: 'off', mouse: false, gamepad: true, history: true, direction: 'horizontal' },
+  kbm: { keyboard: 'gaming', mouse: true, gamepad: false, history: true, direction: 'horizontal' },
+  history: { keyboard: 'off', mouse: false, gamepad: false, history: true, direction: 'vertical' },
+  all: { keyboard: 'gaming', mouse: true, gamepad: true, history: true, direction: 'horizontal' },
+};
+for (const b of document.querySelectorAll('[data-preset]')) {
+  b.addEventListener('click', () => api.setSettings({ overlay: PRESETS[b.dataset.preset] }));
+}
+
+// ---- Raccourcis configurables
+let scStatus = await api.getShortcutStatus();
+let listening = null; // bouton en attente d'une combinaison
+const defaults = await api.getDefaults();
+function renderShortcuts() {
+  for (const b of document.querySelectorAll('.sc-btn')) {
+    const name = b.dataset.sc;
+    const acc = settings.shortcuts?.[name];
+    b.classList.toggle('listening', b === listening);
+    b.classList.toggle('conflict', scStatus[name] === 'conflict' || scStatus[name] === 'invalid');
+    b.classList.toggle('none', !acc);
+    b.textContent = b === listening ? 'Appuie sur une combinaison…' : formatAccel(acc);
+    b.title = scStatus[name] === 'conflict' ? 'Déjà utilisé par un autre logiciel : choisis une autre combinaison' : '';
+  }
+  // textes et infobulles qui mentionnent un raccourci
+  for (const el of document.querySelectorAll('[data-sc-title]')) el.title = formatAccel(settings.shortcuts?.[el.dataset.scTitle]);
+  for (const el of document.querySelectorAll('[data-sc-text]')) el.textContent = formatAccel(settings.shortcuts?.[el.dataset.scText]);
+}
+function stopListening() {
+  listening = null;
+  api.suspendShortcuts(false);
+  renderShortcuts();
+}
+for (const b of document.querySelectorAll('.sc-btn')) {
+  b.addEventListener('click', () => {
+    if (listening === b) return stopListening();
+    listening = b;
+    api.suspendShortcuts(true);
+    renderShortcuts();
+  });
+}
+window.addEventListener(
+  'keydown',
+  (ev) => {
+    if (!listening) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    if (ev.code === 'Escape') return stopListening();
+    const name = listening.dataset.sc;
+    if (ev.code === 'Delete' && !ev.ctrlKey && !ev.altKey && !ev.shiftKey) {
+      api.setSettings({ shortcuts: { [name]: '' } });
+      return stopListening();
+    }
+    const acc = accelFromEvent(ev);
+    if (!acc) return; // on attend une combinaison complète
+    // si la combinaison est déjà prise par une autre action, on la lui retire
+    const patch = { [name]: acc };
+    for (const [other, a] of Object.entries(settings.shortcuts || {})) if (other !== name && a === acc) patch[other] = '';
+    api.setSettings({ shortcuts: patch });
+    stopListening();
+  },
+  true
+);
+document.getElementById('btn-sc-reset').addEventListener('click', () => api.setSettings({ shortcuts: defaults.shortcuts }));
+api.onShortcutStatus((st) => {
+  scStatus = st;
+  renderShortcuts();
+});
+renderShortcuts();
+
+// ---- Version et mises à jour
+document.getElementById('app-version').textContent = await api.appVersion();
+const banner = document.getElementById('update-banner');
+const updStatus = document.getElementById('update-status');
+function renderUpdate(u) {
+  const texts = {
+    idle: '',
+    dev: 'désactivées en mode développement',
+    checking: 'vérification…',
+    uptodate: 'à jour',
+    downloading: `téléchargement de la ${u.latest ?? ''}… ${u.percent ? u.percent + '%' : ''}`,
+    ready: `version ${u.latest} prête`,
+    'available-portable': `version ${u.latest} disponible`,
+    error: 'impossible de vérifier (hors ligne ?)',
+  };
+  updStatus.textContent = texts[u.state] ?? '';
+  if (u.state === 'ready') {
+    banner.innerHTML = `Mise à jour ${u.latest} prête <button class="btn primary" id="btn-upd-install">Redémarrer</button>`;
+    banner.hidden = false;
+    document.getElementById('btn-upd-install').onclick = () => api.installUpdate();
+  } else if (u.state === 'available-portable') {
+    banner.innerHTML = `Nouvelle version ${u.latest} <button class="btn primary" id="btn-upd-open">Télécharger</button>`;
+    banner.hidden = false;
+    document.getElementById('btn-upd-open').onclick = () => api.openReleases();
+  } else banner.hidden = true;
+}
+renderUpdate(await api.getUpdateState());
+api.onUpdateState(renderUpdate);
+document.getElementById('btn-update-check').addEventListener('click', () => api.checkUpdates());
+
 api.onSettings((s) => {
   settings = s;
+  renderShortcuts();
   widgets.forEach((w) => w.setSettings(s));
   recordings.setSettings(s);
   training.setSettings(s);

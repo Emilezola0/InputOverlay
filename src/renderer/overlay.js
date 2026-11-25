@@ -1,6 +1,7 @@
 // Overlay : fenêtre transparente qui affiche les widgets choisis par-dessus le jeu.
 import { InputHub } from './lib/hub.js';
 import { KeyboardWidget, MouseWidget, GamepadWidget, HistoryWidget } from './lib/widgets.js';
+import { formatAccel } from './lib/labels.js';
 
 const api = window.inputMemory;
 const root = document.getElementById('root');
@@ -69,15 +70,25 @@ function apply() {
   }
   root.className = o.direction;
   wrap.style.zoom = o.scale;
+  document.getElementById('lock-key').textContent = formatAccel(settings.shortcuts?.overlayLock);
   root.style.opacity = o.opacity;
   document.body.classList.toggle('editing', !o.locked);
 }
 
-// La fenêtre s'adapte à la taille du contenu
-new ResizeObserver(() => {
+// La fenêtre s'adapte à la taille du contenu, sans jamais dépasser l'écran
+function fit() {
   const r = document.body.getBoundingClientRect();
+  const z = Number(wrap.style.zoom) || 1;
+  const natW = (r.width - 12) / z;
+  const natH = (r.height - 12) / z;
+  const k = Math.min(settings.overlay.scale, (screen.availWidth - 40) / natW, (screen.availHeight - 40) / natH);
+  if (Math.abs(k - z) > 0.01) {
+    wrap.style.zoom = k; // le ResizeObserver rappellera fit()
+    return;
+  }
   api.overlayFit(r.width, r.height);
-}).observe(document.body);
+}
+new ResizeObserver(fit).observe(document.body);
 
 apply();
 renderTraining();

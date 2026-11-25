@@ -87,3 +87,39 @@ export function formatDuration(ms, unit) {
   if (unit === 'frames') return `${Math.round(ms / (1000 / 60))}f`;
   return ms >= 10000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
 }
+
+// ---- Raccourcis : accélérateur Electron <-> texte affiché
+const ACCEL_NAMES = {
+  CommandOrControl: 'Ctrl', Control: 'Ctrl', Ctrl: 'Ctrl', Shift: 'Maj', Alt: 'Alt', Super: 'Win',
+  Backspace: '⌫', Delete: 'Suppr', Insert: 'Inser', Return: 'Entrée', Enter: 'Entrée', Space: 'Espace',
+  Up: '↑', Down: '↓', Left: '←', Right: '→', PageUp: 'PgPréc', PageDown: 'PgSuiv', Home: 'Début', End: 'Fin',
+};
+export function formatAccel(acc) {
+  if (!acc) return 'aucun';
+  return acc.split('+').map((p) => ACCEL_NAMES[p] ?? p.replace(/^num/, 'Num')).join('+');
+}
+
+const CODE_TO_ACCEL = {
+  Backspace: 'Backspace', Delete: 'Delete', Insert: 'Insert', Enter: 'Enter', Space: 'Space', Tab: 'Tab',
+  ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right',
+  PageUp: 'PageUp', PageDown: 'PageDown', Home: 'Home', End: 'End',
+  NumpadAdd: 'numadd', NumpadSubtract: 'numsub', NumpadMultiply: 'nummult', NumpadDivide: 'numdiv', NumpadDecimal: 'numdec',
+};
+/** Convertit un keydown du navigateur en accélérateur Electron (null si incomplet / invalide). */
+export function accelFromEvent(ev) {
+  const c = ev.code;
+  let key = null;
+  if (/^Key[A-Z]$/.test(c)) key = /^[a-z]$/i.test(ev.key) ? ev.key.toUpperCase() : c.slice(3); // lettre selon la disposition
+  else if (/^Digit\d$/.test(c)) key = c.slice(5);
+  else if (/^F([1-9]|1\d|2[0-4])$/.test(c)) key = c;
+  else if (/^Numpad\d$/.test(c)) key = 'num' + c.slice(6);
+  else key = CODE_TO_ACCEL[c] ?? null;
+  if (!key) return null; // touche modificatrice seule ou non gérée
+  const mods = [];
+  if (ev.ctrlKey) mods.push('CommandOrControl');
+  if (ev.altKey) mods.push('Alt');
+  if (ev.shiftKey) mods.push('Shift');
+  if (ev.metaKey) mods.push('Super');
+  if (!mods.length && !/^F\d+$/.test(key)) return null; // sans modificateur, seules les touches F sont acceptées
+  return [...mods, key].join('+');
+}

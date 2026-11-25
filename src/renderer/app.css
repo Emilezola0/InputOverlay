@@ -239,3 +239,33 @@ kbd {
   font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 5px; background: var(--panel-2);
   font-variant-numeric: tabular-nums; border: 1px solid currentColor;
 }
+
+/* ---- Préréglages overlay ---- */
+.presets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 14px; }
+
+/* ---- Raccourcis configurables ---- */
+.shortcuts { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.sc-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sc-btn {
+  min-width: 130px; background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-bottom-width: 2px; border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.sc-btn:hover { border-color: var(--accent); }
+.sc-btn.listening { border-color: var(--accent); background: #241d44; color: var(--accent-2); }
+.sc-btn.conflict { border-color: #ff6b81; color: #ff8a9a; }
+.sc-btn.none { color: var(--muted); font-weight: 400; }
+.sc-reset { margin-top: 14px; }
+
+/* ---- Mises à jour ---- */
+.update-line { display: flex; align-items: center; gap: 10px; }
+.update-banner {
+  display: flex; align-items: center; gap: 10px; font-size: 13px;
+  background: #1d2f4a; border: 1px solid #3f6db3; color: #cfe0ff; border-radius: 999px; padding: 4px 6px 4px 12px;
+}
+.update-banner[hidden] { display: none; }
+.update-banner .btn { padding: 3px 10px; border-radius: 999px; }
+
+/* liste des sessions / séquences : pas de défilement horizontal */
+.rec-list { overflow-x: hidden; }
+.rec-item { max-width: 100%; overflow: hidden; }
+.rec-item-name, .seq-preview { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

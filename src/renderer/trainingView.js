@@ -1,6 +1,6 @@
 // Onglet « Entraînement » : éditeur de séquence modèle, test en direct, résultat et récap.
 import { buildSteps, evaluate, summarize, AttemptTracker, VERDICT_LABEL, keyOf } from './lib/training.js';
-import { inputLabel, formatDuration } from './lib/labels.js';
+import { inputLabel, formatDuration, formatAccel } from './lib/labels.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -34,10 +34,33 @@ export function initTraining(api, getSettings) {
       last = r;
       if (!attemptsBySeq.has(seq.id)) attemptsBySeq.set(seq.id, []);
       attemptsBySeq.get(seq.id).push(r);
+      persistAttempts(seq.id);
       renderTest();
       renderRecap();
     },
   });
+
+  // Essais sauvegardés sur disque (sans les appuis bruts, inutiles pour le récap)
+  function persistAttempts(id) {
+    const list = (attemptsBySeq.get(id) ?? []).map(({ presses, ...rest }) => rest);
+    api.saveAttempts(id, list);
+  }
+  function clearAttempts(id) {
+    attemptsBySeq.set(id, []);
+    api.deleteAttempts(id);
+  }
+  function ensureAttemptsLoaded(id) {
+    if (attemptsBySeq.has(id)) return;
+    attemptsBySeq.set(id, []);
+    api.loadAttempts(id).then((list) => {
+      attemptsBySeq.set(id, [...list, ...(attemptsBySeq.get(id) ?? [])]);
+      if (seq?.id === id && phase !== 'running') {
+        last = attempts().at(-1) ?? null;
+        phase = last ? 'result' : 'ready';
+        renderAll();
+      }
+    });
+  }
 
   // ---------------------------------------------------------------- Séquences
   async function refreshList(selectId) {
@@ -71,6 +94,7 @@ export function initTraining(api, getSettings) {
   function select(s) {
     stopCapture(false);
     seq = s ? { ...DEFAULTS, ...s } : null;
+    if (seq) ensureAttemptsLoaded(seq.id);
     tracker.setSequence(seq);
     phase = 'ready';
     live = null;
@@ -103,7 +127,7 @@ export function initTraining(api, getSettings) {
   function changed({ resetAttempts = false } = {}) {
     tracker.setSequence(seq);
     if (resetAttempts) {
-      attemptsBySeq.delete(seq.id);
+      clearAttempts(seq.id);
       last = null;
       phase = 'ready';
     }
@@ -119,7 +143,7 @@ export function initTraining(api, getSettings) {
   $('btn-seq-delete').addEventListener('click', async () => {
     if (!seq || !confirm(`Supprimer la séquence « ${seq.name} » ?`)) return;
     await api.deleteSequence(seq.id);
-    attemptsBySeq.delete(seq.id);
+    clearAttempts(seq.id);
     seq = null;
     refreshList();
   });
@@ -226,7 +250,7 @@ export function initTraining(api, getSettings) {
   $('btn-train-toggle').addEventListener('click', () => setActive(!active));
   $('btn-train-reset').addEventListener('click', () => {
     if (!seq) return;
-    attemptsBySeq.delete(seq.id);
+    clearAttempts(seq.id);
     last = null;
     phase = 'ready';
     renderTest();
@@ -299,7 +323,7 @@ export function initTraining(api, getSettings) {
     const status = $('train-status');
     const view = phase === 'running' ? live : last;
     if (!seq.steps.length) status.innerHTML = '<span class="muted">Enregistre d\'abord une séquence modèle.</span>';
-    else if (!active) status.innerHTML = '<span class="muted">Clique sur <b>▶ Activer le test</b> (ou Ctrl+Maj+T, même en jeu), puis joue la séquence.</span>';
+    else if (!active) status.innerHTML = `<span class="muted">Clique sur <b>▶ Activer le test</b> (ou ${esc(formatAccel(settings.shortcuts?.training))}, même en jeu), puis joue la séquence.</span>`;
     else if (phase === 'running') status.innerHTML = '<span class="verdict running">En cours…</span>';
     else if (phase === 'result' && last)
       status.innerHTML = `<span class="verdict v-${last.verdict}">${VERDICT_LABEL[last.verdict]}</span>

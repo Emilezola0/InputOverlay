@@ -1,6 +1,5 @@
 // Enregistreur de sessions : capture les événements du hub avec un temps relatif au début.
 
-const SHORTCUT_KEYS = new Set([29, 3613, 42, 54, 19]); // Ctrl, Ctrl D, Maj, Maj D, R (raccourci Ctrl+Maj+R)
 
 const two = (n) => String(n).padStart(2, '0');
 export const defaultSessionName = (d = new Date()) =>
@@ -54,9 +53,16 @@ function clean(raw, source, durationMs) {
   let events = [...raw];
   // retire les inputs qui ont servi à arrêter l'enregistrement
   if (source === 'shortcut') {
-    while (events.length) {
-      const e = events[events.length - 1];
-      if (e.device === 'kb' && e.type === 'down' && SHORTCUT_KEYS.has(e.code)) events.pop();
+    // les touches du raccourci sont encore enfoncées : appuis clavier finaux sans relâchement
+    const released = new Set();
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i];
+      if (e.device !== 'kb') break;
+      if (e.type === 'up') {
+        released.add(e.code);
+        continue;
+      }
+      if (e.type === 'down' && !released.has(e.code)) events.splice(i, 1);
       else break;
     }
   } else {
