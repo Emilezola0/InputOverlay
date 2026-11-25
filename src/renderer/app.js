@@ -33,7 +33,12 @@ hub.start();
 api.onClearHistory(() => history.clear());
 
 // ---- Enregistrement
-const recordings = initRecordings(api, () => settings);
+const recordings = initRecordings(api, () => settings, {
+  onMakeSequence: (id) => {
+    document.querySelector('.tab[data-view="training"]').click();
+    training.open(id);
+  },
+});
 training = initTraining(api, () => settings, hub, (s) => gamepad.setGuides(s.angleGuides));
 const recBtn = document.getElementById('btn-rec');
 const recLabel = document.getElementById('rec-label');
@@ -199,7 +204,8 @@ document.getElementById('btn-update-check').addEventListener('click', () => api.
 const ovBtn = document.getElementById('btn-overlay');
 function renderOverlayBtn() {
   const on = settings.overlay.visible;
-  ovBtn.textContent = on ? 'Overlay : affiché' : 'Overlay : masqué · afficher';
+  ovBtn.textContent = on ? 'Overlay ✓' : 'Overlay masqué';
+  ovBtn.title = on ? 'Overlay affiché : clic pour le masquer' : "Overlay masqué : clic pour l'afficher";
   ovBtn.classList.toggle('ok', on);
 }
 ovBtn.addEventListener('click', () => api.setSettings({ overlay: { visible: !settings.overlay.visible } }));

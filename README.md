@@ -48,6 +48,14 @@ Publier une version (après `gh auth login`) :
 
 ## V3 : entraînement
 - Onglet **Entraînement** : crée une séquence, clique sur **● Enregistrer le modèle** et joue la séquence attendue (arrêt auto après 1,5 s). Les inputs simultanés forment une étape (accord).
+- **Éditeur en frise**, façon montage vidéo : une piste par input, un bloc par appui.
+  - Glisser un bloc déplace son étape (Maj : la suite suit, Alt : sans aimant de 5 ms). Double-clic sur une piste : ajouter l'input. Clic droit : le retirer.
+  - Les fenêtres de délai (jaune) s'étirent par leurs bords.
+  - **+ Piste** ajoute un input depuis une palette (actions du jeu, boutons, directions de stick) ou en l'appuyant.
+  - **▶ Aperçu** rejoue le modèle au ralenti. Ton dernier essai apparaît en cercles pointillés.
+  - Ctrl+Z / Ctrl+Y pour annuler / rétablir, Suppr pour supprimer l'étape sélectionnée, ←/→ pour la décaler de 5 ms (Maj : 50 ms), Ctrl+D pour la dupliquer.
+- **⇋ Miroir** crée la version gauche ↔ droite d'une séquence (directions, angles, air roll). **⧉ Dupliquer** en fait une copie.
+- **Depuis un enregistrement** : dans l'onglet Enregistrements, choisis un passage avec **⟦ Début** et **Fin ⟧** (touches I et O), puis clique sur **→ Séquence**.
 - Étapes modifiables : supprimer une étape, en ajouter une (**+ Étape**), ajuster l'écart en ms entre deux étapes.
 - Options : tolérance de timing, vérifier ou non le timing, ignorer les appareils absents de la séquence.
 - **▶ Activer le test** (ou Ctrl+Maj+T, même en jeu) : chaque essai est détecté automatiquement puis évalué étape par étape :

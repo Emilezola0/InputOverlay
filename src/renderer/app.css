@@ -350,3 +350,66 @@ kbd {
 
 .pill-btn { cursor: pointer; font: inherit; font-size: 12px; background: none; }
 .pill-btn:hover { border-color: var(--accent); }
+
+/* ---- Éditeur de séquence en frise ---- */
+.se { outline: none; margin-bottom: 10px; position: relative; }
+.se-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
+.se-bar .btn { padding: 4px 10px; }
+.se-speed { padding: 3px 6px; }
+.se-sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+.se-hint { color: var(--muted); font-size: 11px; margin-left: 4px; }
+.se-scroll { overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.se:focus-within .se-scroll { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
+.se-content { position: relative; min-height: 60px; user-select: none; }
+.se-ruler { position: absolute; left: 0; right: 0; top: 0; border-bottom: 1px solid var(--line); }
+.se-lbl-ruler { color: var(--muted); font-size: 11px; justify-content: flex-end; }
+.se-tick { position: absolute; top: 0; width: 1px; background: color-mix(in srgb, var(--line) 70%, transparent); pointer-events: none; }
+.se-tick-t { position: absolute; top: 5px; font-size: 10px; color: var(--muted); pointer-events: none; white-space: nowrap; }
+.se-gap { position: absolute; top: 14px; text-align: center; font-size: 10px; font-weight: 700; color: var(--accent); pointer-events: none; border-top: 1px dashed color-mix(in srgb, var(--accent) 50%, transparent); line-height: 10px; padding-top: 1px; }
+.se-row { position: absolute; left: 0; right: 0; background: var(--panel); }
+.se-row.odd { background: var(--panel-2); }
+.se-row.hold { background: color-mix(in srgb, #3fdc8a 6%, var(--panel)); }
+.se-lbl { position: sticky; left: 0; z-index: 4; width: 132px; height: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; background: inherit; border-right: 1px solid var(--line); font-size: 12px; overflow: hidden; }
+.se-lbl b { white-space: nowrap; }
+.se-lbl small { color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.se-lane-x { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 2px; opacity: 0; }
+.se-row:hover .se-lane-x { opacity: 1; }
+.se-lane-x:hover { color: #ff8a8a; }
+.se-dot { width: 4px; height: 12px; border-radius: 2px; flex: none; background: var(--c); }
+.se-dot.dev-kb { --c: var(--kb); } .se-dot.dev-mouse { --c: var(--mouse); } .se-dot.dev-pad { --c: var(--pad); }
+.se-block { position: absolute; z-index: 2; min-width: 26px; box-sizing: border-box; padding: 0 4px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 3px;
+  font-size: 11px; font-weight: 800; color: #fff; cursor: grab; background: color-mix(in srgb, var(--c) 70%, #000); border: 1.5px solid var(--c); white-space: nowrap; }
+.se-block small { font-weight: 600; font-size: 9px; opacity: 0.9; }
+.se-block.dev-kb { --c: var(--kb); } .se-block.dev-mouse { --c: var(--mouse); } .se-block.dev-pad { --c: var(--pad); }
+.se-block:hover { filter: brightness(1.2); }
+.se-block.sel { outline: 2px solid #fff; outline-offset: 1px; z-index: 3; }
+.se-block.hit { background: var(--c); box-shadow: 0 0 12px var(--c); }
+.se-chord { position: absolute; z-index: 1; width: 2px; background: color-mix(in srgb, var(--text) 35%, transparent); pointer-events: none; }
+.se-chord.sel { background: #fff; }
+.se-win { position: absolute; z-index: 1; border-radius: 5px; background: rgba(240, 185, 64, 0.16); border: 1px solid rgba(240, 185, 64, 0.65); box-sizing: border-box; }
+.se-win.open { border-right-style: dashed; background: linear-gradient(90deg, rgba(240, 185, 64, 0.18), rgba(240, 185, 64, 0)); }
+.se-win.sel { background: rgba(240, 185, 64, 0.28); }
+.se-win-h { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: rgba(240, 185, 64, 0.9); border-radius: 3px; }
+.se-win-h.r { left: auto; right: -4px; }
+.se-holdbar { position: absolute; z-index: 1; height: 16px; border-radius: 8px; background: rgba(63, 220, 138, 0.25); border: 1px solid rgba(63, 220, 138, 0.6); color: #bdf5d4; font-size: 10px; line-height: 15px; padding-left: 8px; box-sizing: border-box; pointer-events: none; white-space: nowrap; overflow: hidden; }
+.se-ghost { position: absolute; z-index: 2; width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box; border: 2px dashed; background: transparent; pointer-events: auto; }
+.se-ghost.g-ok { border-color: #3fdc8a; } .se-ghost.g-almost { border-color: #f0b940; } .se-ghost.g-miss { border-color: #ff6b81; }
+.se-play { position: absolute; top: 0; z-index: 5; width: 2px; background: #ff4d6d; pointer-events: none; }
+.se-tip { position: absolute; z-index: 6; background: #000c; color: #fff; font-size: 11px; padding: 3px 7px; border-radius: 5px; pointer-events: none; white-space: nowrap; }
+.se-empty { position: absolute; left: 150px; right: 10px; color: var(--muted); font-size: 13px; }
+.se-palette { position: absolute; top: 34px; left: 0; z-index: 20; width: min(560px, 100%); max-height: 340px; overflow-y: auto; background: var(--panel-2); border: 1px solid var(--accent); border-radius: 10px; padding: 8px 10px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5); }
+.se-palette h4 { margin: 6px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.se-pal-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.se-pal-i { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; font: 700 12px 'Segoe UI', sans-serif; cursor: pointer; }
+.se-pal-i:hover { border-color: var(--accent); }
+.se-pal-cap { margin-top: 6px; }
+.seq-details-bar { display: flex; align-items: center; gap: 10px; margin: 2px 0 8px; font-size: 12px; }
+.seq-details-bar .btn { padding: 3px 10px; font-size: 12px; }
+.step-card { cursor: pointer; }
+.step-card.sel { border-color: #fff; }
+
+.sel-group { display: inline-flex; gap: 0; margin-left: 6px; }
+.sel-group .btn { border-radius: 0; margin-left: -1px; }
+.sel-group .btn:first-child { border-radius: 6px 0 0 6px; }
+.sel-group .btn:last-child { border-radius: 0 6px 6px 0; }
+.sel-group .btn.on { border-color: #f0b940; color: #f0b940; }

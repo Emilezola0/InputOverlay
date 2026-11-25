@@ -3,13 +3,14 @@ import { analyze, ReplayState, keyOf } from './lib/replay.js';
 import { Timeline, formatClock } from './lib/timeline.js';
 import { KeyboardWidget, MouseWidget, GamepadWidget, HistoryWidget } from './lib/widgets.js';
 import { inputLabel, formatDuration, formatAccel } from './lib/labels.js';
+import { buildSteps } from './lib/training.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const fmtDate = (ms) =>
   new Date(ms).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-export function initRecordings(api, getSettings) {
+export function initRecordings(api, getSettings, { onMakeSequence } = {}) {
   let settings = getSettings();
   let list = [];
   let session = null;
@@ -72,6 +73,7 @@ export function initRecordings(api, getSettings) {
     $('rec-main').classList.remove('empty');
     $('rec-name').value = s.name;
     timeline.setData(data, settings);
+    setRange({ a: null, b: null });
     renderStats();
     renderList();
     seek(0);
@@ -142,6 +144,54 @@ export function initRecordings(api, getSettings) {
       </table>`;
   }
 
+  // ---- Passage Début / Fin → séquence d'entraînement
+  let range = { a: null, b: null };
+  function setRange(r) {
+    range = r;
+    timeline.range = r.a == null && r.b == null ? null : r;
+    $('btn-in').classList.toggle('on', r.a != null);
+    $('btn-out').classList.toggle('on', r.b != null);
+    timeline.draw();
+  }
+  function markIn() {
+    setRange({ a: playhead, b: range.b != null && range.b > playhead ? range.b : null });
+  }
+  function markOut() {
+    setRange({ a: range.a != null && range.a < playhead ? range.a : null, b: playhead });
+  }
+  async function toSequence() {
+    if (!session) return;
+    // sans Début / Fin : la partie visible de la frise
+    const visA = timeline.offset;
+    const visB = timeline.offset + timeline.barWidth * timeline.msPerPx;
+    const a = range.a ?? (range.b != null ? 0 : visA);
+    const b = range.b ?? (range.a != null ? data.duration : visB);
+    const evs = session.events;
+    const presses = [];
+    evs.forEach((e, i) => {
+      if (e.t < a || e.t > b || (e.type !== 'down' && e.type !== 'tap')) return;
+      const p = { device: e.device, code: e.code, t: e.t, angle: e.angle };
+      // angle au plus loin du centre : donné par le relâchement de la direction
+      if (e.type === 'down') {
+        const up = evs.slice(i + 1).find((u) => u.type === 'up' && u.device === e.device && u.code === e.code);
+        if (up?.peakAngle != null) p.peakAngle = up.peakAngle;
+      }
+      presses.push(p);
+    });
+    if (!presses.length) return alert('Aucun appui dans ce passage. Choisis-le avec ⟦ Début et Fin ⟧ (touches I et O).');
+    const steps = buildSteps(presses, 40);
+    if (steps.length > 40 && !confirm(`Ce passage donne ${steps.length} étapes. Créer quand même la séquence ? (tu pourras retirer des pistes ensuite)`)) return;
+    const name = `${session.name} (${formatClock(a, false)} – ${formatClock(b, false)})`;
+    const created = await api.saveSequence({
+      tolerance: 50, timing: true, chordWindow: 40, trigger: 'first', inputFilter: 'sequence', stickSweep: true,
+      checkAngles: false, category: 'Depuis un enregistrement', note: '', hold: [], name, steps,
+    });
+    onMakeSequence?.(created.id);
+  }
+  $('btn-in').addEventListener('click', markIn);
+  $('btn-out').addEventListener('click', markOut);
+  $('btn-to-seq').addEventListener('click', toSequence);
+
   // ---- Contrôles
   $('btn-play').addEventListener('click', () => setPlaying(!playing));
   $('rec-speed').addEventListener('change', () => (lastFrame = performance.now()));
@@ -179,6 +229,9 @@ export function initRecordings(api, getSettings) {
       const stepMs = ev.shiftKey ? 1000 : 1000 / 60; // une frame, ou 1 s avec Maj
       seek(playhead + (ev.code === 'ArrowLeft' ? -stepMs : stepMs));
     } else if (ev.code === 'Home') seek(0);
+    else if (ev.code === 'KeyI') markIn();
+    else if (ev.code === 'KeyO') markOut();
+    else if (ev.code === 'Escape') setRange({ a: null, b: null });
   });
 
   refreshList();

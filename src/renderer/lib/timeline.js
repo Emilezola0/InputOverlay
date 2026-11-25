@@ -233,6 +233,17 @@ export class Timeline {
       }
     });
 
+    // sélection Début / Fin : l'extérieur est assombri
+    if (this.range) {
+      const a = this.range.a != null ? this._x(this.range.a) : LABEL_W;
+      const b = this.range.b != null ? this._x(this.range.b) : W;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      if (a > LABEL_W) ctx.fillRect(LABEL_W, AXIS_H, Math.min(a, W) - LABEL_W, H - AXIS_H);
+      if (b < W) ctx.fillRect(Math.max(b, LABEL_W), AXIS_H, W - Math.max(b, LABEL_W), H - AXIS_H);
+      ctx.fillStyle = '#f0b940';
+      for (const [t, x] of [[this.range.a, a], [this.range.b, b]]) if (t != null && x >= LABEL_W && x <= W) ctx.fillRect(Math.round(x) - 1, AXIS_H - 6, 2, H);
+    }
+
     // colonne des libellés
     ctx.fillStyle = v('--panel');
     ctx.fillRect(0, 0, LABEL_W, H);

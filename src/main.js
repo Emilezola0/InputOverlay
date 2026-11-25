@@ -558,6 +558,31 @@ function debugSnapshot(dir) {
     setTimeout(() => updateSettings({ overlay: { visible: true } }), 4000);
     setTimeout(() => where('réaffiché'), 4600);
     delay = 4900;
+  } else if (process.env.IM_FAKE === 'editor') {
+    // Éditeur en frise : modèle speedflip, puis glisser / double-clic / clic droit / annuler (événements DOM factices)
+    js(800, `document.querySelector('.tab[data-view="training"]').click(); document.getElementById('btn-seq-templates').click();`);
+    js(1100, `document.querySelector('.tpl-item[data-tpl="0"]').click();`);
+    const dragJs = (sel, dx, opts = '') => `(() => { const b = document.querySelector('${sel}'); const r = b.getBoundingClientRect(); const c = document.querySelector('.se-content');
+      const o = { bubbles: true, button: 0, pointerId: 1, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 ${opts} };
+      b.dispatchEvent(new PointerEvent('pointerdown', o));
+      c.dispatchEvent(new PointerEvent('pointermove', { ...o, clientX: o.clientX + ${dx} / 2 }));
+      c.dispatchEvent(new PointerEvent('pointermove', { ...o, clientX: o.clientX + ${dx} }));
+      c.dispatchEvent(new PointerEvent('pointerup', { ...o, clientX: o.clientX + ${dx} })); })(); 0;`;
+    const log = (ms, label) => js(ms, `console.log('[editor] ${label} : ' + JSON.stringify(document.querySelectorAll('.se-block').length) + ' blocs · ' + [...document.querySelectorAll('#seq-steps .step-card')].map((c) => c.querySelector('.chips').textContent.replace(/\s+/g, '')).join(' | ') + ' · écarts ' + [...document.querySelectorAll('.gap-input')].map((i) => i.value).join(',') + ' · fenêtres ' + [...document.querySelectorAll('.win-input')].map((i) => i.value || '-').join(','))`);
+    log(1500, 'départ');
+    js(1700, dragJs('.se-block[data-step="3"]', 90)); // air roll plus tard
+    log(1900, 'air roll déplacé');
+    js(2100, `document.querySelector('.win-input[data-i="3"][data-k="min"]').value = 80; document.querySelector('.win-input[data-i="3"][data-k="min"]').dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('.win-input[data-i="3"][data-k="max"]').value = 160; document.querySelector('.win-input[data-i="3"][data-k="max"]').dispatchEvent(new Event('change', { bubbles: true })); 0;`);
+    js(2300, dragJs('.se-win-h.r[data-step="3"]', 50));
+    log(2500, 'fenêtre étirée');
+    js(2700, `(() => { const row = [...document.querySelectorAll('.se-row')].find((r) => r.textContent.includes('Sauter')); const r = row.getBoundingClientRect(); row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: r.left + r.width * 0.8, clientY: r.top + r.height / 2 })); })(); 0;`);
+    log(2900, 'saut ajouté au double-clic');
+    js(3100, `(() => { const b = document.querySelectorAll('.se-block[data-step="4"]')[0]; b.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); })(); 0;`);
+    log(3300, 'retiré au clic droit');
+    js(3500, `document.getElementById('seq-editor').dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })); 0;`);
+    log(3700, 'annulé (Ctrl+Z)');
+    js(3800, `document.querySelector('.se-block[data-step="2"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 2 })); document.querySelector('.se-content').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 2 })); 0;`);
+    delay = 4200;
   } else if (process.env.IM_FAKE === 'reopen') {
     // Rouvre l'onglet Entraînement pour vérifier que les essais sauvegardés sont rechargés
     js(800, `document.querySelector('.tab[data-view="training"]').click();`);
@@ -612,7 +637,14 @@ function debugSnapshot(dir) {
     for (const [ms, type, device, code] of seq) fake(ms, type, device, code);
     setTimeout(() => mainWin.webContents.send('record:toggle'), 3200);
     js(3600, `document.querySelector('.tab[data-view="recordings"]').click(); setTimeout(() => { for (let i = 0; i < 30; i++) document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight', bubbles: true })); }, 500);`);
-    delay = 4800;
+    if (process.env.IM_REC2SEQ) {
+      // passage 0,3 s → 1,9 s (touches I / O), puis « → Séquence »
+      const key = (code, shift = false) => `window.dispatchEvent(new KeyboardEvent('keydown', { code: '${code}', shiftKey: ${shift}, bubbles: true }));`;
+      js(4400, `${key('Home')} for (let i = 0; i < 18; i++) ${key('ArrowRight')} ${key('KeyI')} ${key('ArrowRight', true)} for (let i = 0; i < 36; i++) ${key('ArrowRight')} ${key('KeyO')} 0;`);
+      js(4800, `document.getElementById('btn-to-seq').click(); 0;`);
+      js(5400, `console.log('[rec2seq] ' + document.querySelector('.view.training').classList.contains('active') + ' · ' + document.getElementById('seq-name').value + ' · ' + [...document.querySelectorAll('#seq-steps .step-card .chips')].map((c) => c.textContent.replace(/\s+/g, '')).join(' | '))`);
+      delay = 5800;
+    } else delay = 4800;
   }
   setTimeout(async () => {
     for (const [name, w] of [['main', mainWin], ['overlay', overlayWin]]) {

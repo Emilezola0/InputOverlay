@@ -152,3 +152,32 @@ export function fromTemplate(tpl, settings) {
   applyControls(seq, settings);
   return seq;
 }
+
+// Version miroir d'une séquence : gauche ↔ droite (directions, angles, air roll gauche / droite)
+const MIRROR_ARROW = { '←': '→', '→': '←', '↖': '↗', '↗': '↖', '↙': '↘', '↘': '↙', '↑': '↑', '↓': '↓' };
+const MIRROR_ACTION = { airRollLeft: 'airRollRight', airRollRight: 'airRollLeft' };
+const MIRROR_WORDS = [['gauche', 'droite'], ['Gauche', 'Droite'], ['left', 'right']];
+
+export function mirrorSequence(seq, settings) {
+  const m = structuredClone(seq);
+  delete m.id;
+  const flip = (i) => {
+    if (typeof i.code === 'string' && /^[lr]s:/.test(i.code)) i.code = i.code.slice(0, 3) + (MIRROR_ARROW[i.code.slice(3)] ?? i.code.slice(3));
+    if (i.angle != null) i.angle = i.angle === 180 || i.angle === -180 ? 180 : -i.angle;
+    if (i.action && MIRROR_ACTION[i.action]) i.action = MIRROR_ACTION[i.action];
+  };
+  for (const st of m.steps) st.inputs.forEach(flip);
+  (m.hold ?? []).forEach(flip);
+  if (m.armKey) flip(m.armKey);
+  applyControls(m, settings); // les actions échangées reprennent le bon bouton
+  let name = m.name;
+  let swapped = false;
+  for (const [a, b] of MIRROR_WORDS) {
+    if (name.includes(a) || name.includes(b)) {
+      name = name.replace(new RegExp(`${a}|${b}`, 'g'), (w) => (w === a ? b : a));
+      swapped = true;
+    }
+  }
+  m.name = swapped ? name : `${name} (miroir)`;
+  return m;
+}

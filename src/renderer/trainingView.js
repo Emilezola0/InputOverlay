@@ -1,6 +1,7 @@
 // Onglet « Entraînement » : éditeur de séquence modèle, test en direct, résultat et récap.
 import { buildSteps, evaluate, summarize, AttemptTracker, VERDICT_LABEL, keyOf, inputFilterOf, holdKeys, isStickInput, hasWindow } from './lib/training.js';
-import { TEMPLATES, GAMES, fromTemplate, controlsFor, applyControls, actionLabel } from './lib/templates.js';
+import { TEMPLATES, GAMES, fromTemplate, controlsFor, applyControls, actionLabel, mirrorSequence } from './lib/templates.js';
+import { SeqEditor } from './lib/seqEditor.js';
 import { inputLabel, formatDuration, formatAccel, formatAngle, K } from './lib/labels.js';
 
 const $ = (id) => document.getElementById(id);
@@ -25,6 +26,49 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
   let armed = false; // touche de départ appuyée, en attente de l'essai
 
   const attempts = () => attemptsBySeq.get(seq?.id) ?? [];
+
+  // ---------------------------------------------------------------- Annuler / rétablir (par séquence)
+  let undoStack = [];
+  let redoStack = [];
+  const state = () => JSON.stringify({ steps: seq.steps, hold: seq.hold ?? [] });
+  function snapshot() {
+    if (!seq) return;
+    undoStack.push(state());
+    if (undoStack.length > 80) undoStack.shift();
+    redoStack = [];
+  }
+  function restore(from, to) {
+    if (!seq || !from.length) return;
+    to.push(state());
+    const st = JSON.parse(from.pop());
+    seq.steps = st.steps;
+    seq.hold = st.hold;
+    changed({ resetAttempts: true });
+  }
+  const undo = () => restore(undoStack, redoStack);
+  const redo = () => restore(redoStack, undoStack);
+
+  // ---------------------------------------------------------------- Éditeur en frise
+  const editor = new SeqEditor($('seq-editor'), {
+    getSettings: () => settings,
+    onBeforeChange: snapshot,
+    onChange: () => changed({ resetAttempts: true }),
+    onUndo: undo,
+    onRedo: redo,
+    onSelect: (i) => {
+      for (const c of document.querySelectorAll('#seq-steps .step-card')) c.classList.toggle('sel', Number(c.dataset.i) === i);
+    },
+    onCaptureLane: () => startCapture('lane'),
+    getActions: () => {
+      if (!seq?.game || !GAMES[seq.game]) return [];
+      const ctrl = controlsFor(settings, seq.game);
+      return Object.entries(GAMES[seq.game].actions).map(([k, a]) => ({ label: a.label, input: { ...ctrl[k], action: k } }));
+    },
+  });
+  function updateGhost() {
+    const r = phase === 'running' ? null : last;
+    editor.setGhost(r ? r.steps.map((s, i) => ({ i, at: s.at, status: s.status })).filter((g) => g.at != null) : null);
+  }
   const chips = (inputs, game = seq?.game) =>
     inputs
       .map((i) => {
@@ -226,6 +270,8 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
   function select(s) {
     stopCapture(false);
     seq = s ? { ...DEFAULTS, ...s } : null;
+    undoStack = [];
+    redoStack = [];
     if (seq) ensureAttemptsLoaded(seq.id);
     tracker.setSequence(seq);
     phase = 'ready';
@@ -234,6 +280,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
     if (last) phase = 'result';
     $('train-main').classList.toggle('empty', !seq);
     if (!seq) {
+      editor.setSequence(null);
       setActive(false);
       return;
     }
@@ -247,6 +294,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
     $('seq-category').value = seq.category ?? '';
     $('seq-note').value = seq.note ?? '';
     seq.hold = seq.hold ?? [];
+    editor.setSequence(seq);
     renderAll();
   }
 
@@ -263,6 +311,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
   }
 
   function changed({ resetAttempts = false } = {}) {
+    editor.setSequence(seq, { keepView: true });
     tracker.setSequence(seq);
     if (resetAttempts) {
       clearAttempts(seq.id);
@@ -278,6 +327,23 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
     const created = await api.saveSequence({ ...DEFAULTS, name: `Séquence ${n}`, steps: [] });
     await refreshList(created.id);
   });
+  $('btn-seq-dup').addEventListener('click', async () => {
+    if (!seq) return;
+    const { id, ...copy } = structuredClone(seq);
+    const created = await api.saveSequence({ ...copy, name: `${seq.name} (copie)` });
+    await refreshList(created.id);
+  });
+  $('btn-seq-mirror').addEventListener('click', async () => {
+    if (!seq) return;
+    const created = await api.saveSequence(mirrorSequence(seq, settings));
+    await refreshList(created.id);
+  });
+  $('btn-seq-details').addEventListener('click', () => {
+    const open = $('seq-steps').hidden;
+    $('seq-steps').hidden = !open;
+    $('btn-seq-details').textContent = open ? 'Masquer les détails' : 'Détails des étapes';
+  });
+
   $('btn-seq-delete').addEventListener('click', async () => {
     if (!seq || !confirm(`Supprimer la séquence « ${seq.name} » ?`)) return;
     await api.deleteSequence(seq.id);
@@ -329,8 +395,14 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
 
   // Édition des étapes : supprimer, modifier l'écart
   $('seq-steps').addEventListener('click', (ev) => {
+    const card = ev.target.closest('.step-card');
     const del = ev.target.closest('.step-del');
+    if (card && !del && !ev.target.closest('input')) {
+      editor.select(seq.steps[Number(card.dataset.i)]);
+      return;
+    }
     if (!del) return;
+    snapshot();
     const i = Number(del.dataset.i);
     seq.steps.splice(i, 1);
     if (seq.steps.length) {
@@ -340,6 +412,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
     changed({ resetAttempts: true });
   });
   $('seq-steps').addEventListener('change', (ev) => {
+    if (ev.target.closest('.win-input, .ang-input, .gap-input')) snapshot();
     const win = ev.target.closest('.win-input');
     if (win) {
       const st = seq.steps[Number(win.dataset.i)];
@@ -370,6 +443,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
   $('seq-holds').addEventListener('click', (ev) => {
     const del = ev.target.closest('.hold-del');
     if (del) {
+      snapshot();
       seq.hold.splice(Number(del.dataset.i), 1);
       changed({ resetAttempts: true });
     } else if (ev.target.closest('#btn-hold-add')) {
@@ -403,7 +477,12 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
       return;
     }
     if (!presses.length) return;
+    if (c.mode === 'lane') {
+      editor.addLane({ device: presses[0].device, code: presses[0].code });
+      return;
+    }
     if (c.mode === 'hold') {
+      snapshot();
       const p = { device: presses[0].device, code: presses[0].code };
       if (!seq.hold.some((h) => keyOf(h) === keyOf(p))) seq.hold.push(p);
       changed({ resetAttempts: true });
@@ -418,6 +497,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
     const hk = holdKeys(seq);
     presses = presses.filter((p) => !hk.has(keyOf(p)));
     if (!presses.length) return;
+    snapshot();
     const steps = buildSteps(presses, seq.chordWindow);
     if (c.mode === 'model') seq.steps = steps;
     else {
@@ -451,6 +531,8 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
         ? `Joue ta séquence modèle… (${capture.presses.length} input${capture.presses.length > 1 ? 's' : ''}) — arrêt auto après 1,5 s sans input, ou clique sur Terminer.`
         : capture.mode === 'arm'
           ? 'Appuie sur la touche de départ (un bouton que tu n\'utilises pas dans la séquence, ex. View / Share ou une touche du clavier)…'
+          : capture.mode === 'lane'
+            ? 'Appuie sur l\'input à ajouter comme piste…'
           : capture.mode === 'hold'
             ? 'Appuie sur l\'input à maintenir pendant tout l\'essai (ex. accélérer, boost)…'
             : 'Appuie sur le ou les inputs de la nouvelle étape…';
@@ -499,7 +581,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
       }
       capture.presses.push({ device: ev.device, code: ev.code, t: ev.t });
       clearTimeout(capture.timer);
-      if (capture.mode === 'arm' || capture.mode === 'hold') return stopCapture(true);
+      if (capture.mode === 'arm' || capture.mode === 'hold' || capture.mode === 'lane') return stopCapture(true);
       if (capture.mode === 'step') capture.timer = setTimeout(() => stopCapture(true), seq.chordWindow + 20);
       else capture.timer = setTimeout(() => stopCapture(true), 1500);
       renderCapture();
@@ -524,7 +606,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
       ${seq.hold.length ? seq.hold.map((h, i) => `<span class="hold-item">${chips([h])}<button class="step-del hold-del" data-i="${i}" title="Retirer">×</button></span>`).join('') : '<span class="muted">rien</span>'}
       <button id="btn-hold-add" class="btn">${capture?.mode === 'hold' ? 'Annuler' : '+ Ajouter'}</button>`;
     if (!seq.steps.length) {
-      $('seq-steps').innerHTML = '<div class="rec-none">Séquence vide : clique sur <b>● Enregistrer le modèle</b> et joue la séquence attendue.</div>';
+      $('seq-steps').innerHTML = '';
       return;
     }
     $('seq-steps').innerHTML = seq.steps
@@ -541,7 +623,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
               .map((inp, j) => (!isStickInput(inp) ? '' : `<span class="ang-edit" title="Angle attendu : 0 = haut, positif = droite, négatif = gauche">${esc(inputLabel(inp, settings))} <input class="ang-input" type="number" step="1" min="-180" max="180" data-i="${i}" data-j="${j}" data-k="angle" placeholder="—" value="${v(inp.angle)}">° ± <input class="ang-input tol" type="number" step="1" min="1" max="90" data-i="${i}" data-j="${j}" data-k="tol" placeholder="15" value="${v(inp.angleTol)}">°</span>`))
               .join('')
           : '';
-        return `${gap}<div class="step-card"><span class="step-num">${i + 1}</span><div class="step-body"><div class="chips">${chips(st.inputs)}</div>${angles ? `<div class="ang-row">${angles}</div>` : ''}</div><button class="step-del" data-i="${i}" title="Supprimer l'étape">×</button></div>`;
+        return `${gap}<div class="step-card${st === editor.sel ? ' sel' : ''}" data-i="${i}"><span class="step-num">${i + 1}</span><div class="step-body"><div class="chips">${chips(st.inputs)}</div>${angles ? `<div class="ang-row">${angles}</div>` : ''}</div><button class="step-del" data-i="${i}" title="Supprimer l'étape">×</button></div>`;
       })
       .join('');
   }
@@ -606,6 +688,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
       .join('');
 
     renderTimeline(view);
+    updateGhost();
     const extras = view?.extras ?? [];
     const holds = view?.holds ?? [];
     $('train-extras').innerHTML =
@@ -765,6 +848,8 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
 
   return {
     onEvent,
+    /** Ouvre une séquence (ex. créée depuis un enregistrement). */
+    open: (id) => refreshList(id),
     setSettings(s) {
       settings = s;
       if (!$('game-controls').hidden) renderControls();
