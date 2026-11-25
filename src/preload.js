@@ -51,4 +51,6 @@ contextBridge.exposeInMainWorld('inputMemory', {
   openReleases: () => ipcRenderer.send('update:open'),
   appVersion: () => ipcRenderer.invoke('app:version'),
   overlayFit: (width, height) => ipcRenderer.send('overlay:fit', { width, height }),
+  overlayMove: (x, y, done = false) => ipcRenderer.send('overlay:move', { x, y, done }),
+  showMainWindow: () => ipcRenderer.send('main:show'),
 });

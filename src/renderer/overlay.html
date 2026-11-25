@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="widgets.css" />
   <style>
     html, body { margin: 0; background: transparent; overflow: hidden; }
-    body { display: inline-block; padding: 6px; }
+    body { display: inline-block; padding: 6px; user-select: none; }
     #root {
       display: inline-flex;
       gap: 8px;
@@ -16,6 +16,7 @@
     }
     #root.vertical { flex-direction: column; }
     #root.horizontal { flex-direction: row; }
+    .ov-slot { position: relative; }
     .ov-card {
       background: rgba(15, 17, 23, 0.78);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -28,14 +29,39 @@
     .ov-card .hist-row { background: rgba(31, 35, 48, 0.85); }
     .ov-card .pad-status { font-size: 11px; }
 
-    /* Mode édition (déverrouillé) : on peut déplacer la fenêtre */
-    body.editing #root { -webkit-app-region: drag; cursor: move; outline: 2px dashed #7c5cff; outline-offset: 3px; border-radius: 10px; }
-    #edit-hint { display: none; }
-    body.editing #edit-hint {
-      display: block;
-      background: #7c5cff; color: #fff; font: 600 11px 'Segoe UI', sans-serif;
-      padding: 4px 8px; border-radius: 6px; margin-bottom: 8px; white-space: nowrap;
+    /* ---- Mode édition (overlay déverrouillé) ---- */
+    #toolbar { display: none; }
+    body.editing #toolbar {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; width: max-content; max-width: 600px;
+      background: #1b1e2b; border: 1px solid #7c5cff; color: #e6e8ef; font: 600 11px 'Segoe UI', sans-serif;
+      padding: 5px 6px; border-radius: 8px; margin-bottom: 8px; cursor: move;
     }
+    .tb-group { display: inline-flex; align-items: center; gap: 3px; padding: 0 4px; border-left: 1px solid #2c3142; }
+    .tb-group:first-of-type { border-left: none; }
+    .tb-label { color: #8b91a5; font-weight: 600; margin-right: 2px; }
+    #toolbar button, .card-tools button {
+      background: #272b3b; color: #e6e8ef; border: 1px solid #353a4e; border-radius: 5px;
+      font: 700 11px 'Segoe UI', sans-serif; padding: 2px 7px; cursor: pointer; min-width: 22px;
+    }
+    #toolbar button:hover, .card-tools button:hover { border-color: #7c5cff; }
+    #toolbar button.off { opacity: 0.45; text-decoration: line-through; }
+    #toolbar button.lock { background: #7c5cff; border-color: #7c5cff; }
+    .tb-val { min-width: 34px; text-align: center; color: #c9cede; }
+    body.editing #content { outline: 2px dashed #7c5cff; outline-offset: 3px; border-radius: 10px; cursor: move; }
+    .card-tools { display: none; }
+    body.editing .ov-slot:hover .card-tools {
+      display: flex; gap: 3px; position: absolute; top: -10px; right: -4px; z-index: 5;
+      background: #1b1e2b; border: 1px solid #7c5cff; border-radius: 6px; padding: 2px; cursor: default;
+    }
+    .card-tools .size { color: #c9cede; font: 600 10px 'Segoe UI', sans-serif; align-self: center; padding: 0 3px; }
+    .card-grip { display: none; }
+    body.editing .card-grip {
+      display: block; position: absolute; right: -3px; bottom: -3px; width: 14px; height: 14px; cursor: nwse-resize;
+      border-right: 3px solid #7c5cff; border-bottom: 3px solid #7c5cff; border-radius: 0 0 6px 0; opacity: 0.8;
+    }
+    body.editing .ov-slot:hover .card-grip { opacity: 1; }
+    .ov-placeholder { color: #8b91a5; font: 12px 'Segoe UI', sans-serif; padding: 4px 6px; min-width: 200px; }
+
     #rec-wrap { margin-bottom: 6px; }
     .ov-train { display: flex; flex-direction: column; gap: 6px; font-family: 'Segoe UI', sans-serif; color: #e6e8ef; min-width: 240px; max-width: 420px; }
     .ov-train-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 12px; color: #8b91a5; }
@@ -55,9 +81,17 @@
 </head>
 <body>
   <div id="wrap">
-    <div id="edit-hint">Glisse pour déplacer · <span id="lock-key"></span> pour verrouiller</div>
-    <div id="rec-wrap" hidden><span id="rec-badge" class="rec-badge">REC</span></div>
-    <div id="root"></div>
+    <div id="toolbar" title="Glisse pour déplacer · molette sur un widget pour changer sa taille">
+      <span class="tb-group"><span class="tb-label">⠿ Afficher</span><span id="tb-widgets"></span></span>
+      <span class="tb-group"><span class="tb-label">Taille</span><button data-act="scale-">−</button><span id="tb-scale" class="tb-val"></span><button data-act="scale+">+</button></span>
+      <span class="tb-group"><span class="tb-label">Opacité</span><button data-act="op-">−</button><span id="tb-op" class="tb-val"></span><button data-act="op+">+</button></span>
+      <span class="tb-group"><button data-act="dir" id="tb-dir"></button><button data-act="reset" title="Remet toutes les tailles à 100 %">Réinit.</button><button data-act="app" title="Ouvrir la fenêtre InputMemory">Appli</button></span>
+      <span class="tb-group"><button data-act="lock" class="lock" id="tb-lock"></button></span>
+    </div>
+    <div id="content">
+      <div id="rec-wrap" hidden><span id="rec-badge" class="rec-badge">REC</span></div>
+      <div id="root"></div>
+    </div>
   </div>
   <script type="module" src="overlay.js"></script>
 </body>

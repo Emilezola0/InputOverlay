@@ -36,6 +36,7 @@ Publier une version (après `gh auth login`) :
 - **Live** : clavier complet (AZERTY/QWERTY), souris, manette (Xbox/PS), touches allumées en temps réel.
 - **Historique** : chaque input avec sa durée d'appui et l'écart depuis le précédent (ms ou frames), appuis simultanés regroupés, filtres par appareil, pause.
 - **Overlay** : fenêtre transparente toujours au premier plan, widgets au choix, taille/opacité/disposition réglables.
+- **Réglage sur place** : déverrouille l'overlay (Ctrl+Maj+L) pour le régler directement par-dessus le jeu. Une barre d'outils permet d'afficher ou masquer chaque widget, et de changer la taille globale, l'opacité et la disposition. Sur chaque widget : −/+, molette ou poignée d'angle pour sa taille, × pour le masquer. On le déplace en le faisant glisser.
 
 ## V2 : enregistrements
 - Bouton **● Enregistrer** (ou Ctrl+Maj+R, même en jeu) : capture tout avec un horodatage précis ; un badge REC apparaît sur l'overlay.

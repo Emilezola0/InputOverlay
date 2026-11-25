@@ -1,5 +1,8 @@
 // Process principal : capture globale clavier/souris (uiohook), fenêtres, réglages.
 const { app, BrowserWindow, ipcMain, globalShortcut, screen, shell, dialog, net } = require('electron');
+
+// Tests (développement uniquement) : dossier de données séparé, pour ne jamais toucher aux vraies séquences / réglages
+if (!app.isPackaged && process.env.IM_USERDATA) app.setPath('userData', process.env.IM_USERDATA);
 const path = require('path');
 const fs = require('fs');
 const { uIOhook } = require('uiohook-napi');
@@ -22,6 +25,7 @@ const DEFAULT_SETTINGS = {
     scale: 1,
     opacity: 0.92,
     historyRows: 6,
+    sizes: { keyboard: 1, mouse: 1, gamepad: 1, history: 1, training: 1 }, // taille de chaque widget (réglable sur l'overlay)
     position: null, // {x, y}
   },
   gameControls: {}, // boutons choisis par jeu (Entraînement → Contrôles)
@@ -209,6 +213,23 @@ ipcMain.on('overlay:fit', (_e, { width, height }) => {
   const x = Math.max(wa.x, Math.min(b.x, wa.x + wa.width - w));
   const y = Math.max(wa.y, Math.min(b.y, wa.y + wa.height - h));
   overlayWin.setBounds({ x, y, width: w, height: h });
+});
+
+// Déplacement de l'overlay à la souris (mode édition)
+ipcMain.on('overlay:move', (_e, { x, y, done }) => {
+  if (!overlayWin || overlayWin.isDestroyed()) return;
+  if (!done && Number.isFinite(x) && Number.isFinite(y)) overlayWin.setPosition(Math.round(x), Math.round(y));
+  if (done) {
+    const [px, py] = overlayWin.getPosition();
+    settings.overlay.position = { x: px, y: py };
+    saveSettingsSoon();
+  }
+});
+ipcMain.on('main:show', () => {
+  if (!mainWin || mainWin.isDestroyed()) return;
+  if (mainWin.isMinimized()) mainWin.restore();
+  mainWin.show();
+  mainWin.focus();
 });
 
 // ---------- Enregistrements (V2) ----------
@@ -478,6 +499,22 @@ function debugSnapshot(dir) {
         [t + 240, 'down', 4]]) fake(ms, type, 'pad', code);
       delay = 4000;
     }
+  } else if (process.env.IM_FAKE === 'overlay-edit') {
+    // Overlay déverrouillé : clavier +, historique à la molette, souris masquée/réaffichée, manette activée
+    const ov = (ms, code) => setTimeout(() => overlayWin.webContents.executeJavaScript(code), ms);
+    setTimeout(() => updateSettings({ overlay: { locked: false, keyboard: 'gaming', mouse: true, gamepad: false, history: true, training: true } }), 600);
+    ov(1200, `document.querySelector('.ov-slot[data-w="keyboard"] [data-act="w+"]').click(); document.querySelector('.ov-slot[data-w="keyboard"] [data-act="w+"]').click();`);
+    ov(1400, `for (let i = 0; i < 4; i++) document.querySelector('.ov-slot[data-w="history"] .ov-card').dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true }));`);
+    ov(1600, `document.querySelector('.ov-slot[data-w="mouse"] [data-act="hide"]').click(); document.querySelector('#tb-widgets [data-w="gamepad"]').click();`);
+    ov(1800, `document.querySelector('[data-act="op-"]').click();`);
+    for (const [ms, code] of [[2000, 0], [2100, 'ls:↗']]) press(ms, 'pad', code);
+    setTimeout(() => console.log('[overlay-before-move]', JSON.stringify(overlayWin.getBounds())), 2200);
+    ov(2300, `(() => { const t = document.getElementById('toolbar'); const o = { bubbles: true, button: 0, pointerId: 1, screenX: 100, screenY: 100 };
+      t.dispatchEvent(new PointerEvent('pointerdown', o));
+      document.dispatchEvent(new PointerEvent('pointermove', { ...o, screenX: 250, screenY: 40 }));
+      document.dispatchEvent(new PointerEvent('pointerup', { ...o, screenX: 250, screenY: 40 })); })()`);
+    setTimeout(() => console.log('[overlay-edit]', JSON.stringify(settings.overlay)), 2600);
+    delay = 2900;
   } else if (process.env.IM_FAKE === 'reopen') {
     // Rouvre l'onglet Entraînement pour vérifier que les essais sauvegardés sont rechargés
     js(800, `document.querySelector('.tab[data-view="training"]').click();`);
