@@ -16,13 +16,13 @@
       <button class="tab" data-view="training">Entraînement</button>
       <button class="tab" data-view="settings">Overlay &amp; réglages</button>
     </nav>
-    <button id="btn-rec" class="rec-btn" data-sc-title="record"><span class="rec-dot"></span><span id="rec-label">Enregistrer</span></button>
     <div id="update-banner" class="update-banner" hidden></div>
     <div class="status">
       <button class="pill pill-btn" id="btn-overlay" data-sc-title="overlayToggle"></button>
       <span class="pill" id="hook-status">Capture…</span>
       <span class="pill" id="pad-status">Manette : aucune</span>
     </div>
+    <button id="btn-rec" class="rec-btn" data-sc-title="record" aria-label="Démarrer / arrêter une capture"><span class="rec-dot"></span><span id="rec-label">REC</span></button>
   </header>
 
   <main>
@@ -61,7 +61,7 @@
       </aside>
 
       <div id="rec-main" class="rec-main empty">
-        <div class="rec-placeholder">Sélectionne ou enregistre une session pour la revoir ici.</div>
+        <div class="rec-placeholder">Sélectionne une session à gauche pour la revoir ici, ou lance une capture avec <b>● REC</b>.</div>
         <div class="card rec-player">
           <div class="player-bar">
             <input id="rec-name" class="rec-name" spellcheck="false" title="Renommer la session" />
@@ -78,11 +78,16 @@
               <button id="btn-in" class="btn">⟦ Début</button><button id="btn-out" class="btn">Fin ⟧</button><button id="btn-to-seq" class="btn">→ Séquence</button>
             </span>
             <span class="spacer"></span>
-            <button id="zoom-out" class="btn" title="Dézoomer">−</button>
-            <button id="zoom-fit" class="btn">Ajuster</button>
-            <button id="zoom-in" class="btn" title="Zoomer">+</button>
-            <button id="btn-export" class="btn">Exporter</button>
-            <button id="btn-delete" class="btn danger">Supprimer</button>
+            <span class="sel-group" title="Zoom (Ctrl+molette)">
+              <button id="zoom-out" class="btn" title="Dézoomer">−</button><button id="zoom-fit" class="btn" title="Tout afficher">Ajuster</button><button id="zoom-in" class="btn" title="Zoomer">+</button>
+            </span>
+            <div class="more-wrap">
+              <button id="btn-rec-more" class="btn" title="Plus d'actions" aria-haspopup="menu">⋯</button>
+              <div id="rec-more" class="more-menu" role="menu" hidden>
+                <button id="btn-export" class="menu-item" role="menuitem">Exporter…</button>
+                <button id="btn-delete" class="menu-item danger" role="menuitem">Mettre à la corbeille</button>
+              </div>
+            </div>
           </div>
           <div id="timeline" class="timeline"></div>
           <div class="tl-hint">Clic / glisser : se placer · Ctrl+molette : zoom · Maj+molette : défiler · Espace : lecture · ←/→ : frame par frame (Maj : 1 s) · I / O : début / fin du passage → Séquence</div>
@@ -114,16 +119,27 @@
       </aside>
 
       <div id="train-main" class="rec-main empty">
-        <div class="rec-placeholder">Crée une séquence avec <b>+ Nouvelle</b>, puis joue la séquence attendue pour l'enregistrer comme modèle.</div>
+        <div class="rec-placeholder train-empty">
+          <p class="empty-title">Choisis une séquence à travailler</p>
+          <p>Pars d'un modèle tout prêt (speedflip, half flip…), ou crée la tienne en la jouant une fois.</p>
+          <div class="empty-actions">
+            <button class="btn primary" data-empty="templates">Partir d'un modèle</button>
+            <button class="btn" data-empty="new">+ Nouvelle séquence</button>
+          </div>
+        </div>
+        <div class="card train-head">
+          <input id="seq-name" class="rec-name" spellcheck="false" title="Renommer la séquence" />
+          <button id="btn-train-toggle" class="btn primary train-go" data-sc-title="training">▶ S'entraîner</button>
+          <span class="spacer"></span>
+          <button id="btn-seq-mirror" class="btn" title="Crée la version miroir (gauche ↔ droite) de cette séquence">⇋ Miroir</button>
+          <button id="btn-seq-dup" class="btn" title="Crée une copie de cette séquence">⧉ Dupliquer</button>
+          <button id="btn-seq-delete" class="btn danger">Supprimer</button>
+        </div>
         <div class="card seq-editor">
           <div class="player-bar">
-            <input id="seq-name" class="rec-name" spellcheck="false" title="Renommer la séquence" />
-            <button id="btn-seq-capture" class="btn">● Enregistrer le modèle</button>
+            <h2 class="bar-title">Séquence</h2>
+            <button id="btn-seq-capture" class="btn">● Capturer le modèle</button>
             <button id="btn-seq-add" class="btn">+ Étape</button>
-            <span class="spacer"></span>
-            <button id="btn-seq-mirror" class="btn" title="Crée la version miroir (gauche ↔ droite) de cette séquence">⇋ Miroir</button>
-            <button id="btn-seq-dup" class="btn" title="Crée une copie de cette séquence">⧉ Dupliquer</button>
-            <button id="btn-seq-delete" class="btn danger">Supprimer</button>
           </div>
           <div class="seq-meta">
             <label>Catégorie <input id="seq-category" list="seq-categories" placeholder="ex. Rocket League" spellcheck="false" /></label>
@@ -132,7 +148,7 @@
           </div>
           <div id="seq-capture-hint" class="capture-hint" hidden></div>
           <div id="seq-editor"></div>
-          <div class="seq-details-bar"><button id="btn-seq-details" class="btn">Masquer les détails</button><span class="muted">Écarts, fenêtres ⏱ et angles en chiffres</span></div>
+          <div id="seq-details-bar" class="seq-details-bar"><button id="btn-seq-details" class="btn">Toutes les étapes</button><span id="seq-details-hint" class="muted"></span></div>
           <div id="seq-steps" class="seq-steps"></div>
           <div id="seq-holds" class="seq-holds"></div>
           <div class="seq-options">
@@ -162,8 +178,7 @@
         <div class="train-bottom">
           <div class="card">
             <div class="history-head">
-              <h2>Test</h2>
-              <button id="btn-train-toggle" class="btn primary" data-sc-title="training">▶ Activer le test</button>
+              <h2>Essai</h2>
             </div>
             <div id="train-status" class="train-status"></div>
             <div id="train-result" class="train-steps"></div>

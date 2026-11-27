@@ -225,7 +225,7 @@ export class GamepadWidget {
   update(hub) {
     const p = hub.pad;
     this.el.classList.toggle('disconnected', !p.connected);
-    this.status.textContent = p.connected ? '' : 'Manette non détectée : appuie sur un bouton';
+    this.status.textContent = p.connected ? '' : 'Manette non détectée · branche-la puis appuie sur un bouton';
     if (!p.connected) return;
     for (const [b, n] of this.btns) n.classList.toggle('on', !!p.buttons[b]);
     for (const [axis, n, ray, label] of this.sticks) {
@@ -349,6 +349,6 @@ export class HistoryWidget {
       const gapTxt = row.gap == null ? '' : `+${formatDuration(row.gap, unit)}`;
       html += `<div class="hist-row${held ? ' held' : ''}"><span class="gap">${gapTxt}</span><span class="chips">${chips}</span><span class="dur">${dur}</span></div>`;
     }
-    this.list.innerHTML = html || '<div class="hist-empty">Appuie sur une touche…</div>';
+    this.list.innerHTML = html || '<div class="hist-empty">Rien pour l\'instant : appuie sur une touche, clique ou utilise ta manette.</div>';
   }
 }

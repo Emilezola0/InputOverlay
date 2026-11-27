@@ -511,6 +511,7 @@ function debugSnapshot(dir) {
       fake(2400, 'up', 'pad', 'ls:→');
       const t = 2600;
       // fenêtre de délai sur l'air roll (étape 4) : 100 à 200 ms après l'annulation
+      js(2050, `document.getElementById('btn-seq-details').click(); 0;`); // toutes les étapes en chiffres
       js(2100, `for (const [k, v] of [['min', 100], ['max', 200]]) { const el = document.querySelector('.win-input[data-i="3"][data-k="' + k + '"]'); el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); }`);
       for (const [ms, type, code, extra] of [[t, 'down', 0], [t + 60, 'up', 0], [t + 100, 'down', 'ls:↖', { angle: -41 }], [t + 115, 'down', 0], [t + 150, 'up', 'ls:↖', { peakAngle: -41 }],
         [t + 150, 'down', 'ls:←', { angle: -95 }], [t + 160, 'up', 'ls:←'], [t + 160, 'down', 'ls:↙', { angle: -140 }], [t + 170, 'up', 'ls:↙'], [t + 170, 'down', 'ls:↓', { angle: -170 }],
@@ -569,6 +570,7 @@ function debugSnapshot(dir) {
       c.dispatchEvent(new PointerEvent('pointermove', { ...o, clientX: o.clientX + ${dx} }));
       c.dispatchEvent(new PointerEvent('pointerup', { ...o, clientX: o.clientX + ${dx} })); })(); 0;`;
     const log = (ms, label) => js(ms, `console.log('[editor] ${label} : ' + JSON.stringify(document.querySelectorAll('.se-block').length) + ' blocs · ' + [...document.querySelectorAll('#seq-steps .step-card')].map((c) => c.querySelector('.chips').textContent.replace(/\s+/g, '')).join(' | ') + ' · écarts ' + [...document.querySelectorAll('.gap-input')].map((i) => i.value).join(',') + ' · fenêtres ' + [...document.querySelectorAll('.win-input')].map((i) => i.value || '-').join(','))`);
+    js(1400, `document.getElementById('btn-seq-details').click(); 0;`); // toutes les étapes en chiffres
     log(1500, 'départ');
     js(1700, dragJs('.se-block[data-step="3"]', 90)); // air roll plus tard
     log(1900, 'air roll déplacé');
@@ -583,6 +585,15 @@ function debugSnapshot(dir) {
     log(3700, 'annulé (Ctrl+Z)');
     js(3800, `document.querySelector('.se-block[data-step="2"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 2 })); document.querySelector('.se-content').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 2 })); 0;`);
     delay = 4200;
+  } else if (process.env.IM_FAKE === 'step-sel') {
+    js(800, `document.querySelector('.tab[data-view="training"]').click(); document.getElementById('btn-seq-templates').click(); 0;`);
+    js(1100, `document.querySelector('.tpl-item[data-tpl="0"]').click(); 0;`);
+    js(1500, `document.querySelector('.se-block[data-step="1"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 2 })); document.querySelector('.se-content').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 2 })); 0;`);
+    js(1700, `document.getElementById('seq-details-bar').scrollIntoView(); 0;`);
+    delay = 2200;
+  } else if (process.env.IM_FAKE === 'train-empty') {
+    js(800, `document.querySelector('.tab[data-view="training"]').click(); 0;`);
+    delay = 1500;
   } else if (process.env.IM_FAKE === 'reopen') {
     // Rouvre l'onglet Entraînement pour vérifier que les essais sauvegardés sont rechargés
     js(800, `document.querySelector('.tab[data-view="training"]').click();`);

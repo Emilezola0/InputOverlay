@@ -44,7 +44,7 @@ export function initRecordings(api, getSettings, { onMakeSequence } = {}) {
   function renderList() {
     const el = $('rec-list');
     if (!list.length) {
-      el.innerHTML = `<div class="rec-none">Aucune session.<br>Clique sur <b>● Enregistrer</b> ou fais <kbd data-sc-text="record">${esc(formatAccel(getSettings().shortcuts?.record))}</kbd>.</div>`;
+      el.innerHTML = `<div class="rec-none">Aucune session.<br>Clique sur <b>● REC</b> en haut à droite ou fais <kbd data-sc-text="record">${esc(formatAccel(getSettings().shortcuts?.record))}</kbd>.</div>`;
       return;
     }
     el.innerHTML = list
@@ -205,6 +205,12 @@ export function initRecordings(api, getSettings, { onMakeSequence } = {}) {
     session.name = name;
     refreshList();
   });
+  // menu « ⋯ » : Exporter, Mettre à la corbeille
+  $('btn-rec-more').addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    $('rec-more').hidden = !$('rec-more').hidden;
+  });
+  document.addEventListener('click', () => ($('rec-more').hidden = true));
   $('btn-export').addEventListener('click', () => session && api.exportRecording(session.id));
   $('btn-import').addEventListener('click', async () => {
     const meta = await api.importRecording();

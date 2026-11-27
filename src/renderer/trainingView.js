@@ -56,6 +56,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
     onUndo: undo,
     onRedo: redo,
     onSelect: (i) => {
+      if (!allSteps && seq) return renderSteps();
       for (const c of document.querySelectorAll('#seq-steps .step-card')) c.classList.toggle('sel', Number(c.dataset.i) === i);
     },
     onCaptureLane: () => startCapture('lane'),
@@ -338,11 +339,20 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
     const created = await api.saveSequence(mirrorSequence(seq, settings));
     await refreshList(created.id);
   });
+  // détails en chiffres : l'étape sélectionnée dans la frise, ou toutes
+  let allSteps = false;
   $('btn-seq-details').addEventListener('click', () => {
-    const open = $('seq-steps').hidden;
-    $('seq-steps').hidden = !open;
-    $('btn-seq-details').textContent = open ? 'Masquer les détails' : 'Détails des étapes';
+    allSteps = !allSteps;
+    renderSteps();
   });
+
+  // état vide : raccourcis vers les modèles ou une nouvelle séquence
+  for (const b of document.querySelectorAll('[data-empty]')) {
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      $(b.dataset.empty === 'new' ? 'btn-seq-new' : 'btn-seq-templates').click();
+    });
+  }
 
   $('btn-seq-delete').addEventListener('click', async () => {
     if (!seq || !confirm(`Supprimer la séquence « ${seq.name} » ?`)) return;
@@ -518,7 +528,7 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
 
   function renderCapture() {
     const hint = $('seq-capture-hint');
-    $('btn-seq-capture').textContent = capture?.mode === 'model' ? '■ Terminer' : '● Enregistrer le modèle';
+    $('btn-seq-capture').textContent = capture?.mode === 'model' ? '■ Terminer' : '● Capturer le modèle';
     $('btn-seq-capture').classList.toggle('recording', capture?.mode === 'model');
     $('btn-seq-add').textContent = capture?.mode === 'step' ? 'Annuler' : '+ Étape';
     $('btn-seq-arm').textContent = capture?.mode === 'arm' ? 'Annuler' : 'Choisir';
@@ -545,8 +555,11 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
     if (active) {
       phase = last ? 'result' : 'ready';
     }
-    $('btn-train-toggle').textContent = active ? '■ Arrêter le test' : '▶ Activer le test';
+    $('btn-train-toggle').textContent = active ? '■ Arrêter' : "▶ S'entraîner";
     $('btn-train-toggle').classList.toggle('recording', active);
+    // pendant l'entraînement, le résultat passe juste sous l'en-tête
+    $('train-main').classList.toggle('testing', active);
+    if (active) $('train-main').scrollTop = 0;
     renderTest();
   }
   $('btn-train-toggle').addEventListener('click', () => setActive(!active));
@@ -605,25 +618,35 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
     $('seq-holds').innerHTML = `<span class="muted">À maintenir pendant tout l'essai :</span>
       ${seq.hold.length ? seq.hold.map((h, i) => `<span class="hold-item">${chips([h])}<button class="step-del hold-del" data-i="${i}" title="Retirer">×</button></span>`).join('') : '<span class="muted">rien</span>'}
       <button id="btn-hold-add" class="btn">${capture?.mode === 'hold' ? 'Annuler' : '+ Ajouter'}</button>`;
+    const selIdx = seq.steps.indexOf(editor.sel);
+    $('seq-details-bar').hidden = !seq.steps.length;
+    $('btn-seq-details').textContent = allSteps ? 'Étape sélectionnée' : 'Toutes les étapes';
+    $('btn-seq-details').classList.toggle('active', allSteps);
+    $('seq-details-hint').textContent = allSteps
+      ? 'Écarts, fenêtres ⏱ et angles de chaque étape'
+      : selIdx >= 0
+        ? `Étape ${selIdx + 1} : écart, fenêtre ⏱ et angles en chiffres`
+        : 'Clique un bloc de la frise pour régler son écart, sa fenêtre ⏱ et ses angles';
     if (!seq.steps.length) {
       $('seq-steps').innerHTML = '';
       return;
     }
     $('seq-steps').innerHTML = seq.steps
       .map((st, i) => {
+        if (!allSteps && i !== selIdx) return '';
         const v = (x) => (x == null ? '' : x);
         const gap = i > 0
           ? `<div class="step-gap${hasWindow(st) ? ' has-win' : ''}">
-              <span title="Écart du modèle avec l'étape précédente"><input class="gap-input" type="number" min="0" step="5" data-i="${i}" value="${Math.round(st.t - seq.steps[i - 1].t)}">ms</span>
-              <span class="win" title="Fenêtre de délai : pas avant min, pas après max (ms après l'étape précédente). Vérifiée même sans « Vérifier le timing ». Laisse vide pour ne pas limiter.">⏱<input class="win-input" type="number" min="0" step="5" data-i="${i}" data-k="min" placeholder="min" value="${v(st.minGap)}">–<input class="win-input" type="number" min="0" step="5" data-i="${i}" data-k="max" placeholder="max" value="${v(st.maxGap)}"></span>
+              <span title="Écart du modèle avec l'étape ${i}">après l'étape ${i} : <input class="gap-input" type="number" min="0" step="5" data-i="${i}" value="${Math.round(st.t - seq.steps[i - 1].t)}">ms</span>
+              <span class="win" title="Fenêtre de délai : pas avant min, pas après max (ms après l'étape précédente). Vérifiée même sans « Vérifier le timing ». Laisse vide pour ne pas limiter.">⏱ fenêtre <input class="win-input" type="number" min="0" step="5" data-i="${i}" data-k="min" placeholder="min" value="${v(st.minGap)}">–<input class="win-input" type="number" min="0" step="5" data-i="${i}" data-k="max" placeholder="max" value="${v(st.maxGap)}">ms</span>
             </div>`
           : '';
         const angles = seq.checkAngles
           ? st.inputs
-              .map((inp, j) => (!isStickInput(inp) ? '' : `<span class="ang-edit" title="Angle attendu : 0 = haut, positif = droite, négatif = gauche">${esc(inputLabel(inp, settings))} <input class="ang-input" type="number" step="1" min="-180" max="180" data-i="${i}" data-j="${j}" data-k="angle" placeholder="—" value="${v(inp.angle)}">° ± <input class="ang-input tol" type="number" step="1" min="1" max="90" data-i="${i}" data-j="${j}" data-k="tol" placeholder="15" value="${v(inp.angleTol)}">°</span>`))
+              .map((inp, j) => (!isStickInput(inp) ? '' : `<span class="ang-edit" title="Angle attendu : 0 = haut, positif = droite, négatif = gauche">angle ${esc(inputLabel(inp, settings))} <input class="ang-input" type="number" step="1" min="-180" max="180" data-i="${i}" data-j="${j}" data-k="angle" placeholder="—" value="${v(inp.angle)}">° ± <input class="ang-input tol" type="number" step="1" min="1" max="90" data-i="${i}" data-j="${j}" data-k="tol" placeholder="15" value="${v(inp.angleTol)}">°</span>`))
               .join('')
           : '';
-        return `${gap}<div class="step-card${st === editor.sel ? ' sel' : ''}" data-i="${i}"><span class="step-num">${i + 1}</span><div class="step-body"><div class="chips">${chips(st.inputs)}</div>${angles ? `<div class="ang-row">${angles}</div>` : ''}</div><button class="step-del" data-i="${i}" title="Supprimer l'étape">×</button></div>`;
+        return `<div class="step-card${st === editor.sel ? ' sel' : ''}" data-i="${i}"><span class="step-num">${i + 1}</span><div class="step-body"><div class="chips">${chips(st.inputs)}</div>${gap}${angles ? `<div class="ang-row">${angles}</div>` : ''}</div><button class="step-del" data-i="${i}" title="Supprimer l'étape">×</button></div>`;
       })
       .join('');
   }
@@ -666,8 +689,8 @@ export function initTraining(api, getSettings, hub = null, onState = null) {
     if (!seq) return;
     const status = $('train-status');
     const view = phase === 'running' ? live : last;
-    if (!seq.steps.length) status.innerHTML = '<span class="muted">Enregistre d\'abord une séquence modèle.</span>';
-    else if (!active) status.innerHTML = `<span class="muted">Clique sur <b>▶ Activer le test</b> (ou ${esc(formatAccel(settings.shortcuts?.training))}, même en jeu), puis joue la séquence.</span>`;
+    if (!seq.steps.length) status.innerHTML = '<span class="muted">Capture d\'abord la séquence modèle (<b>● Capturer le modèle</b>) ou ajoute des étapes dans la frise.</span>';
+    else if (!active) status.innerHTML = `<span class="muted">Clique sur <b>▶ S'entraîner</b> en haut (ou ${esc(formatAccel(settings.shortcuts?.training))}, même en jeu), puis joue la séquence.</span>`;
     else if (phase === 'running') status.innerHTML = '<span class="verdict running">En cours…</span>';
     else if (phase === 'result' && last)
       status.innerHTML = `<span class="verdict v-${last.verdict}">${VERDICT_LABEL[last.verdict]}</span>

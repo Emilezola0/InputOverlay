@@ -49,7 +49,7 @@ async function toggleRecording(source) {
     return;
   }
   recBtn.classList.remove('recording');
-  recLabel.textContent = 'Enregistrer';
+  recLabel.textContent = 'REC';
   const meta = await recorder.stop(settings, source);
   if (meta) recordings.refreshList(meta.id);
 }
